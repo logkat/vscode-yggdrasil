@@ -2,19 +2,21 @@
 
 **Date:** 2026-05-25
 **Project:** yggdrasil
-**Status:** Approved (post-review revision)
+**Status:** Approved (post-reality-check revision)
 
 ---
 
 ## Overview
 
-A VS Code extension that surfaces all git worktrees in a dedicated Explorer panel and lets the user switch between them via a WebStorm-style GUI dialog. Scope is v1 only; v2 (sneak-peek explorer view) and v3 (AI-generated insights) are out of scope and noted only as roadmap.
+A VS Code extension that surfaces all git worktrees in a dedicated Explorer panel and lets the user switch between them via a WebStorm-style GUI dialog. Scope is v1 only; v2 (sneak-peek explorer view) and v3 (AI-generated insights) are out of scope.
+
+**Minimum VS Code version:** `^1.74.0` (required for `RelativePattern` with `vscode.Uri` base)
 
 ---
 
 ## Architecture
 
-Layered services pattern. Three focused modules coordinated by a thin `extension.ts` entry point. The UI layer has no git knowledge; git I/O is isolated in `GitService`.
+Layered services pattern. Three focused modules coordinated by `extension.ts`. The UI layer has no git knowledge; all git I/O goes through `GitService` via `execFileNoThrow`.
 
 ```
 yggdrasil/
@@ -40,7 +42,7 @@ yggdrasil/
 
 ### execFileNoThrow (`src/utils/execFileNoThrow.ts`)
 
-Thin wrapper around Node's `child_process.execFile` — no shell interpolation, safe against injection. All git calls go through this; nothing in the codebase calls Node's process APIs directly.
+Thin wrapper around Node's `child_process.execFile` (not `exec` — no shell interpolation). All git calls go through this; no code elsewhere calls Node process APIs.
 
 ```ts
 interface ExecOptions {
@@ -52,7 +54,7 @@ interface ExecOptions {
 interface ExecResult {
   stdout: string;
   stderr: string;
-  status: number;
+  status: number;  // -1 when the binary is not found (ENOENT)
 }
 
 async function execFileNoThrow(
@@ -62,103 +64,147 @@ async function execFileNoThrow(
 ): Promise<ExecResult>
 ```
 
-Callers inspect `status !== 0` or non-empty `stderr` rather than catching exceptions, keeping error handling explicit. `cwd` is required whenever a git command must run in a specific worktree's directory.
+**ENOENT handling:** If `execFile` throws with `code === 'ENOENT'` (binary not found), catch and return `{ status: -1, stderr: error.message, stdout: '' }`. Callers check `status === -1` to distinguish "git not on PATH" from other errors.
+
+**cwd is required** whenever a git command must run in a specific worktree's directory (e.g. `git status --short` for dirty detection).
 
 ---
 
 ### GitService (`src/git/GitService.ts`)
 
-Responsible for all git I/O. Delegates process execution to `execFileNoThrow`.
-
-**Methods:**
-- `listWorktrees(): Promise<Worktree[]>` — runs `git worktree list --porcelain` from the repo root, parses into `Worktree[]`. Dirty check is batched here (max 4 concurrent via a semaphore) by calling `git -C <path> status --short` per worktree.
-- `getRepoGitDir(): Promise<string>` — runs `git rev-parse --absolute-git-dir` from the active workspace root; used to set `isCurrent` reliably.
-- `addWorktree(path: string, branch: string, isNew: boolean): Promise<void>` — runs `git worktree add <path> <branch>` (existing branch) or `git worktree add -b <branch> <path>` (new branch), depending on `isNew`.
-- `removeWorktree(path: string): Promise<void>` — runs `git worktree remove <path>`.
-
 **`Worktree` type:**
 ```ts
 interface Worktree {
-  path: string;        // absolute path
-  branch: string;      // display name: short branch name, or "(detached HEAD)"
-  head: string;        // SHA
-  gitDir: string;      // absolute path to this worktree's .git dir (from porcelain)
-  isCurrent: boolean;  // gitDir matches getRepoGitDir() result
-  isDirty: boolean;
-  pathExists: boolean; // false if directory has been deleted from disk
+  path: string;        // absolute path (the `worktree` field from porcelain)
+  branch: string;      // display name: short branch (refs/heads/ stripped), "(detached HEAD)", or "(bare)"
+  head: string;        // full 40-char SHA
+  isCurrent: boolean;  // true when this worktree's path matches the active workspace root (symlink-resolved)
+  isDirty: boolean;    // false when pathExists is false
+  pathExists: boolean; // false if the directory no longer exists on disk
+  locked: boolean;     // true when porcelain emits a `locked` line
 }
 ```
 
-**Parsing notes:**
-- The porcelain format emits `branch (missing)` for detached HEAD — display as `(detached HEAD)`.
-- `gitdir` field in porcelain output gives the worktree's `.git` dir; compare against `getRepoGitDir()` for `isCurrent` (path-equality on symlink-resolved paths). Do not compare workspace folder URIs directly.
-- If `path` does not exist on disk, set `pathExists: false`; `isDirty` defaults to `false`.
+**`git worktree list --porcelain` format** (verified against git 2.50.1):
+
+Each worktree record is separated by a blank line. Fields per record:
+```
+worktree /absolute/path          ← always present
+HEAD <40-char-sha>               ← always present
+branch refs/heads/<name>         ← present ONLY when on a branch
+detached                         ← standalone keyword; present ONLY when HEAD is detached (no branch line)
+bare                             ← standalone keyword; present for bare repos
+locked [optional reason text]    ← standalone keyword; present when worktree is locked
+prunable [optional reason text]  ← standalone keyword; present when worktree can be pruned
+```
+
+**Parsing rules:**
+- Split output on `\n\n` to get per-record blocks
+- Per block: iterate lines, match prefix to populate fields
+- `branch` line present → short name = strip `refs/heads/` prefix
+- `detached` line present (no `branch` line) → display as `"(detached HEAD)"`
+- `bare` line present → display as `"(bare)"`, `isDirty = false`
+- `locked` line present → set `locked: true`
+- If `worktree` path does not exist on disk (`fs.existsSync(path) === false`) → set `pathExists: false`, `isDirty = false`
+
+**`isCurrent` detection:**
+- Do NOT compare against `vscode.workspace.workspaceFolders` URIs directly (symlink mismatch on macOS: `/tmp` vs `/private/tmp`)
+- Use `fs.realpath()` to resolve both the worktree `path` field and `workspaceFolders[0].uri.fsPath`, then compare the resolved strings
+- Multi-root workspaces: use `workspaceFolders[0]` as the active root
+
+**Methods:**
+
+`listWorktrees(): Promise<Worktree[]>`
+- Runs `git worktree list --porcelain` with `cwd` set to the repo root
+- Calls `getRepoRoot()` first to establish cwd
+- After parsing, runs dirty checks for all non-bare, non-missing worktrees concurrently, capped at 4 parallel processes (inline semaphore — no external library; 20-line implementation):
+  ```ts
+  // Semaphore: run tasks with max N concurrent
+  async function withConcurrency<T>(tasks: (() => Promise<T>)[], max: number): Promise<T[]>
+  ```
+  The number 4 was chosen as the default git concurrency limit for fetch operations; balances responsiveness against process-table pressure.
+
+`getRepoRoot(): Promise<string>`
+- Runs `git rev-parse --show-toplevel` with `cwd` set to `workspaceFolders[0].uri.fsPath`
+- Result is cached for the lifetime of the provider
+
+`addWorktree(path: string, branch: string, isNew: boolean): Promise<void>`
+- `isNew === true` → `git worktree add -b <branch> <path>`
+- `isNew === false` → `git worktree add <path> <branch>`
+
+`removeWorktree(path: string): Promise<void>`
+- Runs `git worktree remove <path>`
 
 ---
 
 ### WorktreeProvider (`src/tree/WorktreeProvider.ts`)
 
-Implements `vscode.TreeDataProvider<WorktreeItem>`. Calls `GitService.listWorktrees()` to build the tree (dirty checks are consolidated inside `listWorktrees`, not called separately here).
+Implements `vscode.TreeDataProvider<WorktreeItem>`. Calls `GitService.listWorktrees()` (dirty checks consolidated there, not here).
 
 **`WorktreeItem` display:**
-- Label: `branch` field (already short-name + detached HEAD handled by `GitService`)
-- Description: relative path from repo root
-- Icon: branch icon; `isDirty` adds a dot badge; `isCurrent` adds a checkmark overlay; `pathExists === false` adds a warning icon and tooltip "Path not found — run `git worktree prune`"
-- `contextValue`:
-  - `"worktreeItem"` — linked worktree, not current
-  - `"worktreeItemCurrent"` — current worktree (suppress Remove and Switch in menus)
-  - `"worktreeItemMissing"` — path does not exist on disk (suppress Switch and Remove)
+| State | Label | Icon |
+|---|---|---|
+| Normal | branch short name | branch icon |
+| Dirty | branch short name | branch icon + dot badge |
+| Current | branch short name | branch icon + checkmark overlay |
+| Missing path | branch short name | warning icon, tooltip: "Path not found — run `git worktree prune`" |
+| Locked | branch short name + ` (locked)` | lock icon overlay |
+| Bare | `(bare)` | archive icon |
+
+Description field: relative path from repo root (computed as `path.relative(repoRoot, worktree.path)`).
+
+**`contextValue` values:**
+- `"worktreeItem"` — linked worktree, not current
+- `"worktreeItemCurrent"` — current worktree (Switch + Remove suppressed)
+- `"worktreeItemMissing"` — path does not exist (Switch + Remove suppressed)
 
 **Refresh triggers:**
 1. Extension activation
-2. File system watcher on absolute URI `<repoRoot>/.git/worktrees/**` — covers linked worktree add/remove
-3. File system watcher on absolute URI `<repoRoot>/.git/HEAD` — covers current worktree changes
-4. Both watchers are created even if `.git/worktrees/` does not yet exist; VS Code handles non-existent parent directories gracefully
+2. `vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(repoRoot), '.git/worktrees/**'))` — covers linked worktree add/remove
+3. `vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(repoRoot), '.git/HEAD'))` — covers current-worktree changes
+4. Both watchers use `vscode.Uri`-based `RelativePattern` (not plain glob strings) so VS Code's `files.watcherExclude` for `.git/` does not suppress them
 5. Manual refresh command
+
+Edge case — empty worktree list: when a repo has no linked worktrees, `git worktree list --porcelain` returns exactly one record (the main worktree). Show it normally. The list is never empty for a valid git repo.
 
 ---
 
 ### CommandRegistry (`src/commands/CommandRegistry.ts`)
 
-Registers all six commands against the VS Code extension context.
-
-| Command | ID | Trigger |
-|---|---|---|
-| Refresh | `yggdrasil.refresh` | View toolbar button |
-| Switch Worktree | `yggdrasil.switch` | Context menu + inline icon |
-| Add Worktree | `yggdrasil.add` | View toolbar button |
-| Remove Worktree | `yggdrasil.remove` | Context menu |
-| Copy Path | `yggdrasil.copyPath` | Context menu |
-| Reveal in OS Explorer | `yggdrasil.revealInOs` | Context menu |
-
 **Switch flow:**
-1. Check `globalState.get("yggdrasil.switchMode")`. If set, skip dialog and use stored mode directly.
-2. If not set, open a WebView panel (modal style) showing the switch dialog.
-3. WebView posts `{ action, mode, remember }` back to extension host via `acquireVsCodeApi().postMessage(...)`.
-4. Extension host handles each mode with the correct API call:
-   - `"newWindow"` → `vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: true })`
-   - `"replace"` → `vscode.commands.executeCommand("vscode.openFolder", uri, { forceNewWindow: false })`
-   - `"addWorkspace"` → `vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, { uri })`
-5. `action: "cancel"` — dispose the panel, do nothing.
-6. Any unrecognized `action` or `mode` value is silently ignored (defensive guard).
-7. If `remember === true`, write `mode` to `globalState.update("yggdrasil.switchMode", mode)`.
-8. A status bar item "Worktree: \<mode\> ×" is created/updated when the preference is saved; clicking × calls `globalState.update("yggdrasil.switchMode", undefined)` and hides the item.
-9. **On activation**: if `globalState.get("yggdrasil.switchMode")` is already set, immediately create the status bar item so the user can see and clear the preference.
+1. Check `globalState.get("yggdrasil.switchMode")`. If set, skip dialog.
+2. If not set, create WebView panel via a factory function injected at construction (enables unit testing without a live VS Code instance).
+3. WebView posts `{ action, mode, remember }` back via `acquireVsCodeApi().postMessage(...)`.
+4. Extension host dispatches on `mode`:
+   - `"newWindow"` → `vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(worktree.path), { forceNewWindow: true })`
+   - `"replace"` → `vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(worktree.path), { forceNewWindow: false })`
+   - `"addWorkspace"` → `vscode.workspace.updateWorkspaceFolders(vscode.workspace.workspaceFolders?.length ?? 0, 0, { uri: vscode.Uri.file(worktree.path) })`
+5. `action: "cancel"` → dispose panel, do nothing.
+6. Unrecognized `action` or `mode` → silently ignored.
+7. `remember === true` → `globalState.update("yggdrasil.switchMode", mode)`, create/update status bar item.
+8. Status bar item text: `"Worktree: New Window ×"` (or Replace/Workspace). Clicking × calls `globalState.update("yggdrasil.switchMode", undefined)` and hides the item.
+9. **On activation**: if `globalState.get("yggdrasil.switchMode")` is already set, immediately create the status bar item.
 
 **Add flow:**
-1. `showQuickPick` with options "Existing branch" / "New branch" — determines which git flags to use.
-2. `showInputBox` for branch name.
-3. `showInputBox` for path (default derived from branch name, e.g. `../<branchname>`).
-4. `GitService.addWorktree(path, branch, isNew)` then tree refresh.
+1. `showQuickPick(["Existing branch", "New branch"])` → sets `isNew`
+2. `showInputBox({ prompt: "Branch name" })`
+3. `showInputBox({ prompt: "Worktree path", value: "../" + branchName })`
+4. `GitService.addWorktree(path, branch, isNew)` then tree refresh
 
 **Remove flow:**
-1. `showWarningMessage` modal with "Remove" / "Cancel" buttons.
-2. On confirm: `GitService.removeWorktree(path)` then tree refresh.
-3. Remove is only available when `contextValue === "worktreeItem"` (not current, not missing).
+1. `showWarningMessage("Remove worktree '<branch>'?", { modal: true }, "Remove")` 
+2. On confirm: `GitService.removeWorktree(worktree.path)` then tree refresh
+3. Only available when `contextValue === "worktreeItem"`
+
+**copyPath:** `vscode.env.clipboard.writeText(worktree.path)`
+
+**revealInOs:** `vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(worktree.path))`
 
 ---
 
 ## Switch Dialog (WebView)
+
+Implemented as a **regular `createWebviewPanel` tab** — VS Code has no OS-level modal API. The panel is titled "Switch Worktree" and opens in `ViewColumn.Active`.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -175,12 +221,19 @@ Registers all six commands against the VS Code extension context.
 ```
 
 **Security requirements:**
-- The WebView HTML must include a CSP meta tag: `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">`
-- A cryptographic nonce is generated per panel creation: `crypto.randomBytes(16).toString('base64')`
-- Branch name and path are HTML-escaped before injection into the template (e.g. via an `escapeHtml()` utility that replaces `&`, `<`, `>`, `"`, `'`)
-- Inline `<script>` and `<style>` tags carry the nonce attribute
+- CSP meta tag (required for VS Code marketplace approval):
+  `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">`
+- Nonce generated per panel creation: `crypto.randomBytes(16).toString('base64')`
+- All inline `<script>` and `<style>` tags carry `nonce="${nonce}"`
+- Branch name and path HTML-escaped before template injection via `escapeHtml()`:
+  ```ts
+  function escapeHtml(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  ```
 
-**Styling:** VS Code CSS variables (`--vscode-button-background`, `--vscode-foreground`, `--vscode-input-background`, etc.) — automatically matches the user's theme.
+**Styling:** VS Code CSS variables (`--vscode-button-background`, `--vscode-foreground`, `--vscode-input-background`) — matches user's theme automatically.
 
 **Message schema** (WebView → host):
 ```ts
@@ -192,6 +245,7 @@ Registers all six commands against the VS Code extension context.
 ## Package Manifest (`package.json`)
 
 ```json
+"engines": { "vscode": "^1.74.0" },
 "activationEvents": ["onView:yggdrasil.worktrees"],
 "contributes": {
   "views": {
@@ -211,18 +265,17 @@ Registers all six commands against the VS Code extension context.
       { "command": "yggdrasil.add",     "when": "view == yggdrasil.worktrees", "group": "navigation" }
     ],
     "view/item/context": [
-      { "command": "yggdrasil.switch",     "when": "viewItem == worktreeItem",        "group": "inline" },
-      { "command": "yggdrasil.remove",     "when": "viewItem == worktreeItem" },
-      { "command": "yggdrasil.copyPath",   "when": "viewItem =~ /worktreeItem/" },
-      { "command": "yggdrasil.revealInOs", "when": "viewItem =~ /worktreeItem/" }
+      { "command": "yggdrasil.switch",     "when": "viewItem == worktreeItem", "group": "inline" },
+      { "command": "yggdrasil.switch",     "when": "viewItem == worktreeItem", "group": "1_actions" },
+      { "command": "yggdrasil.remove",     "when": "viewItem == worktreeItem", "group": "2_actions" },
+      { "command": "yggdrasil.copyPath",   "when": "viewItem =~ /^worktreeItem/", "group": "3_actions" },
+      { "command": "yggdrasil.revealInOs", "when": "viewItem =~ /^worktreeItem/", "group": "3_actions" }
     ]
   }
 }
 ```
 
-Note: `Switch` and `Remove` are suppressed for `worktreeItemCurrent` and `worktreeItemMissing` via the `when` clauses. `copyPath` and `revealInOs` use a regex match to cover all three `contextValue` variants.
-
-Activation is lazy (`onView:...`) — the extension does not load on every VS Code launch.
+`Switch` and `Remove` are suppressed for `worktreeItemCurrent` and `worktreeItemMissing` by the `when: "viewItem == worktreeItem"` exact match. `copyPath` and `revealInOs` use a `^worktreeItem` prefix regex to match all three variants.
 
 ---
 
@@ -230,33 +283,52 @@ Activation is lazy (`onView:...`) — the extension does not load on every VS Co
 
 | Scenario | Behaviour |
 |---|---|
-| Not a git repo | Tree shows single "Not a git repository" item |
-| `git` not on PATH | Error message with link to git install docs |
+| Not a git repo | Tree shows "Not a git repository" item |
+| `git` not on PATH (`status === -1`) | Error message: "Git not found. Install git and reload." |
 | `listWorktrees` fails | "Failed to load worktrees" item with inline Retry button |
 | `addWorktree` fails | `showErrorMessage` with stderr content |
 | `removeWorktree` fails | `showErrorMessage` with stderr content |
-| Worktree path missing on disk | Item shown with warning icon and tooltip "Path not found — run `git worktree prune`"; Switch and Remove actions disabled via `contextValue: "worktreeItemMissing"` |
+| Worktree path missing on disk | Item with warning icon, tooltip "Path not found — run `git worktree prune`"; `contextValue: "worktreeItemMissing"` disables Switch and Remove |
 
 ---
 
 ## Testing
 
-- **`execFileNoThrow` unit tests** — mock the underlying Node process; verify structured output, `cwd` forwarding, and Windows compatibility.
-- **`GitService` unit tests** — mock `execFileNoThrow`; cover porcelain parser (including detached HEAD and missing-path cases), dirty detection, add/remove happy paths, error propagation, and `isCurrent` detection via `gitDir` comparison.
-- **`WorktreeProvider` unit tests** — assert tree item labels, descriptions, icons, and all three `contextValue` variants.
-- **`CommandRegistry` unit tests** — mock the WebView panel's `onDidReceiveMessage`; verify: correct VS Code API called per mode, `action: "cancel"` does nothing, `remember: true` writes to `globalState`, unrecognized values are silently ignored, status bar item created on activation when preference is already set.
-- Test runner: Mocha + `@vscode/test-electron`.
-- No E2E/headless VS Code tests in v1.
+**`execFileNoThrow` unit tests:**
+- Mock the underlying `child_process.execFile`
+- Verify: success path returns `{ stdout, stderr, status: 0 }`, non-zero exit returns structured result, ENOENT throws map to `{ status: -1 }`
+
+**`GitService` unit tests:**
+- Mock `execFileNoThrow`
+- Porcelain parser: normal branch, detached HEAD, bare, locked, missing path cases
+- `isCurrent` detection: symlink resolution (mock `fs.realpath`)
+- Dirty detection: clean vs dirty output
+- `addWorktree`: `isNew=true` uses `-b` flag, `isNew=false` does not
+- Error propagation: non-zero status surfaces correctly
+
+**`WorktreeProvider` unit tests:**
+- Assert labels, descriptions, icons, and all three `contextValue` variants for each worktree state
+
+**`CommandRegistry` unit tests:**
+- Inject a mock WebView factory; trigger `onDidReceiveMessage` with each message type
+- `action: "open", mode: "newWindow"` → `executeCommand("vscode.openFolder", ..., { forceNewWindow: true })`
+- `action: "open", mode: "addWorkspace"` → `updateWorkspaceFolders`
+- `action: "cancel"` → no API call, panel disposed
+- `remember: true` → `globalState.update` called with correct key and value
+- Unrecognized `action` → no crash, no side effects
+- Activation with existing `globalState` preference → status bar item created
+
+**Test runner:** Mocha + `@vscode/test-electron`. No E2E tests in v1.
 
 ---
 
 ## README Structure
 
 1. One-line description
-2. Animated GIF placeholder (replace after first working build)
+2. Animated GIF placeholder (replace after first build)
 3. Feature list (v1)
 4. Installation
-5. Commands table (no keybindings defined in v1)
+5. Commands table (no keybindings in v1)
 6. Switch dialog behaviour explanation
 7. Roadmap: v2 sneak-peek explorer, v3 AI insights
 8. Contributing guide
@@ -270,4 +342,4 @@ Activation is lazy (`onView:...`) — the extension does not load on every VS Co
 | v2 | Sneak-peek explorer view — browse worktree file tree without switching |
 | v3 | AI-generated insights per worktree (branch summary, diff highlights) |
 
-When v2 lands, `WorktreeProvider` will be promoted to emit events and a second `TreeDataProvider` will subscribe — the event-driven pattern applies at that point.
+When v2 lands, `WorktreeProvider` promotes to emit events and a second `TreeDataProvider` subscribes.
