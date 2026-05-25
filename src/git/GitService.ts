@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { execFileNoThrow } from '../utils/execFileNoThrow';
 
 export interface Worktree {
@@ -10,6 +11,7 @@ export interface Worktree {
   pathExists: boolean;
   locked: boolean;
   bare: boolean;
+  dotGit?: string;
 }
 
 async function withConcurrency<T>(
@@ -86,7 +88,7 @@ export function parsePorcelain(
 export class GitService {
   private repoRootCache: string | undefined;
 
-  constructor(private readonly getWorkspaceRoot: () => string | undefined) {}
+  constructor(public readonly getWorkspaceRoot: () => string | undefined) {}
 
   async getRepoRoot(): Promise<string> {
     if (this.repoRootCache) { return this.repoRootCache; }
@@ -114,14 +116,31 @@ export class GitService {
 
     const partial = parsePorcelain(result.stdout, currentRealPath);
 
-    const dirtyTasks = partial.map((wt) => async (): Promise<boolean> => {
-      if (!wt.pathExists || wt.bare) { return false; }
-      const r = await execFileNoThrow('git', ['status', '--short'], { cwd: wt.path });
-      return r.status === 0 && r.stdout.trim().length > 0;
+    const enrichTasks = partial.map((wt) => async (): Promise<{ isDirty: boolean; dotGit?: string }> => {
+      if (!wt.pathExists || wt.bare) { return { isDirty: false }; }
+      
+      const [statusRes, revParseRes] = await Promise.all([
+        execFileNoThrow('git', ['status', '--short'], { cwd: wt.path }),
+        execFileNoThrow('git', ['rev-parse', '--git-dir'], { cwd: wt.path })
+      ]);
+
+      const isDirty = statusRes.status === 0 && statusRes.stdout.trim().length > 0;
+      let dotGit: string | undefined;
+      if (revParseRes.status === 0) {
+        dotGit = revParseRes.stdout.trim();
+        if (!path.isAbsolute(dotGit)) {
+          dotGit = path.resolve(wt.path, dotGit);
+        }
+      }
+      return { isDirty, dotGit };
     });
 
-    const dirtyResults = await withConcurrency(dirtyTasks, 4);
-    return partial.map((wt, i) => ({ ...wt, isDirty: dirtyResults[i] }));
+    const enrichResults = await withConcurrency(enrichTasks, 4);
+    return partial.map((wt, i) => ({
+      ...wt,
+      isDirty: enrichResults[i].isDirty,
+      dotGit: enrichResults[i].dotGit
+    }));
   }
 
   async addWorktree(wtPath: string, branch: string, isNew: boolean): Promise<void> {
@@ -146,11 +165,3 @@ export class GitService {
   }
 }
 
-export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}

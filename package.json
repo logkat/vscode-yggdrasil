@@ -7,84 +7,125 @@
   "engines": {
     "vscode": "^1.74.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["onView:yggdrasil.worktrees"],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "yggdrasil-view",
+          "title": "Git Worktree Explorer",
+          "icon": "./images/worktree.svg"
+        }
+      ]
+    },
     "views": {
+      "yggdrasil-view": [
+        {
+          "id": "ygg.worktrees",
+          "name": "Git Worktrees"
+        }
+      ],
       "explorer": [
         {
-          "id": "yggdrasil.worktrees",
-          "name": "Git Worktrees"
+          "id": "ygg.worktrees.explorer",
+          "name": "Git Worktrees (Explorer)",
+          "when": "config.ygg.showInExplorer != false"
         }
       ]
     },
     "commands": [
       {
-        "command": "yggdrasil.refresh",
+        "command": "ygg.refresh",
         "title": "Refresh",
         "icon": "$(refresh)"
       },
       {
-        "command": "yggdrasil.switch",
+        "command": "ygg.switch",
         "title": "Switch Worktree",
         "icon": "$(arrow-swap)"
       },
       {
-        "command": "yggdrasil.add",
+        "command": "ygg.selectAndSwitch",
+        "title": "Switch Worktree...",
+        "category": "ygg"
+      },
+      {
+        "command": "ygg.clearSwitchMode",
+        "title": "Clear Remembered Switch Mode",
+        "category": "ygg"
+      },
+      {
+        "command": "ygg.welcome",
+        "title": "Welcome",
+        "category": "ygg"
+      },
+      {
+        "command": "ygg.add",
         "title": "Add Worktree",
+        "category": "ygg",
         "icon": "$(add)"
       },
       {
-        "command": "yggdrasil.remove",
+        "command": "ygg.remove",
         "title": "Remove Worktree",
         "icon": "$(trash)"
       },
       {
-        "command": "yggdrasil.copyPath",
+        "command": "ygg.copyPath",
         "title": "Copy Path"
       },
       {
-        "command": "yggdrasil.revealInOs",
+        "command": "ygg.revealInOs",
         "title": "Reveal in Finder / Explorer"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "yggdrasil.refresh",
-          "when": "view == yggdrasil.worktrees",
+          "command": "ygg.refresh",
+          "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
           "group": "navigation"
         },
         {
-          "command": "yggdrasil.add",
-          "when": "view == yggdrasil.worktrees",
+          "command": "ygg.add",
+          "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "yggdrasil.switch",
+          "command": "ygg.switch",
           "when": "viewItem == worktreeItem",
           "group": "inline"
         },
         {
-          "command": "yggdrasil.switch",
+          "command": "ygg.switch",
           "when": "viewItem == worktreeItem",
           "group": "1_actions"
         },
         {
-          "command": "yggdrasil.remove",
+          "command": "ygg.remove",
           "when": "viewItem == worktreeItem",
           "group": "2_actions"
         },
         {
-          "command": "yggdrasil.copyPath",
+          "command": "ygg.copyPath",
           "when": "viewItem =~ /^worktreeItem/",
           "group": "3_actions"
         },
         {
-          "command": "yggdrasil.revealInOs",
+          "command": "ygg.revealInOs",
           "when": "viewItem =~ /^worktreeItem/",
           "group": "3_actions"
         }
@@ -102,6 +143,7 @@
     "@types/node": "^20.11.5",
     "@types/vscode": "^1.74.0",
     "@vscode/test-electron": "^2.3.8",
+    "@vscode/vsce": "^3.9.1",
     "mocha": "^10.3.0",
     "typescript": "^5.3.3"
   }

@@ -1,11 +1,10 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { CommandRegistry, WebviewPanelFactory } from '../../commands/CommandRegistry';
+import { CommandRegistry } from '../../commands/CommandRegistry';
 import { GitService } from '../../git/GitService';
 import { WorktreeProvider } from '../../tree/WorktreeProvider';
 import { WorktreeItem } from '../../tree/WorktreeProvider';
 
-// Minimal mock for vscode.ExtensionContext.globalState
 function makeGlobalState(initial: Record<string, unknown> = {}): vscode.Memento & { update: (k: string, v: unknown) => Thenable<void> } {
   const store = new Map<string, unknown>(Object.entries(initial));
   return {
@@ -28,10 +27,10 @@ function makeMockContext(globalStateValues: Record<string, unknown> = {}): vscod
   } as unknown as vscode.ExtensionContext;
 }
 
-function makeMockGit(): GitService {
+function makeMockGit(worktrees: Partial<import('../../git/GitService').Worktree>[] = []): GitService {
   return {
     getRepoRoot: async () => '/repo',
-    listWorktrees: async () => [],
+    listWorktrees: async () => worktrees,
     addWorktree: async () => {},
     removeWorktree: async () => {},
     invalidateCache: () => {},
@@ -57,114 +56,205 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
   } as unknown as WorktreeItem;
 }
 
-suite('CommandRegistry — WebView message protocol', () => {
-  let capturedMessages: Array<(msg: unknown) => void> = [];
-
-  function makeFactory(autoReply?: { action: string; mode?: string; remember?: boolean }): WebviewPanelFactory {
-    return (_title, _html, onMessage) => {
-      capturedMessages.push(onMessage);
-      if (autoReply) {
-        // Deliver the reply asynchronously to simulate user interaction
-        Promise.resolve().then(() => onMessage(autoReply));
-      }
-      return { dispose: () => {} };
-    };
-  }
+  suite('CommandRegistry', () => {
+  let registry: CommandRegistry | undefined;
+  let disposables: vscode.Disposable[] = [];
 
   setup(() => {
-    capturedMessages = [];
+    // We can't really unregister commands in the real VS Code host,
+    // and the extension might have already registered them.
+    // So we don't call registry.register() in setup.
   });
 
-  test('action:cancel resolves without calling openFolder', async () => {
-    const openedFolders: vscode.Uri[] = [];
-    const ctx = makeMockContext();
-    const registry = new CommandRegistry(ctx, makeMockGit(), makeMockProvider(), makeFactory({ action: 'cancel' }));
-    registry.register();
-
-    const originalExecute = vscode.commands.executeCommand.bind(vscode.commands);
-    let called = false;
-    const stub = async (cmd: string, ...args: unknown[]) => {
-      if (cmd === 'vscode.openFolder') { called = true; }
-      return originalExecute(cmd, ...args);
-    };
-    (vscode.commands as unknown as { executeCommand: typeof stub }).executeCommand = stub;
-
-    await vscode.commands.executeCommand('yggdrasil.switch', makeWorktreeItem());
-    assert.strictEqual(called, false);
+  teardown(() => {
+    disposables.forEach(d => d.dispose());
+    disposables = [];
   });
 
-  test('action:open mode:newWindow stores preference and opens in new window', async () => {
-    const ctx = makeMockContext();
-    let openedUri: vscode.Uri | undefined;
-    let openedOptions: unknown;
+  function getRegistry(ctx = makeMockContext(), git = makeMockGit(), provider = makeMockProvider()): CommandRegistry {
+    // Instead of registering again, we just return a new instance if needed, 
+    // but the commands are already bound to the first instance.
+    // This is a limitation of testing in a real VS Code host.
+    // For these tests, we'll try to use the registry instance to call methods directly 
+    // or rely on the fact that they call the same methods.
+    return new CommandRegistry(ctx, git, provider);
+  }
 
-    const factory = makeFactory({ action: 'open', mode: 'newWindow', remember: true });
-    const registry = new CommandRegistry(ctx, makeMockGit(), makeMockProvider(), factory);
-    registry.register();
+  suite('ygg.switch — inline button, no dialog', () => {
 
-    // Intercept the openFolder command
-    const orig = vscode.commands.executeCommand.bind(vscode.commands);
-    (vscode.commands as unknown as { executeCommand: Function }).executeCommand = async (cmd: string, uri: vscode.Uri, opts: unknown) => {
-      if (cmd === 'vscode.openFolder') { openedUri = uri; openedOptions = opts; return; }
-      return orig(cmd, uri, opts);
-    };
-
-    await vscode.commands.executeCommand('yggdrasil.switch', makeWorktreeItem('main', '/repo/main'));
-
-    assert.ok(openedUri, 'openFolder should have been called');
-    assert.strictEqual(openedUri!.fsPath, '/repo/main');
-    assert.deepStrictEqual(openedOptions, { forceNewWindow: true });
-    assert.strictEqual(ctx.globalState.get('yggdrasil.switchMode'), 'newWindow');
-  });
-
-  test('action:open mode:addWorkspace calls updateWorkspaceFolders', async () => {
-    const ctx = makeMockContext();
-    const factory = makeFactory({ action: 'open', mode: 'addWorkspace', remember: false });
-    const registry = new CommandRegistry(ctx, makeMockGit(), makeMockProvider(), factory);
-    registry.register();
-
-    let updateCalled = false;
-    const origUpdate = vscode.workspace.updateWorkspaceFolders.bind(vscode.workspace);
-    (vscode.workspace as unknown as { updateWorkspaceFolders: Function }).updateWorkspaceFolders =
-      (start: number, del: number, ...folders: unknown[]) => {
-        updateCalled = true;
-        return true;
+    test('uses stored newWindow preference directly', async () => {
+      const ctx = makeMockContext({ 'ygg.switchMode': 'newWindow' });
+      const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
+      // Directly call the private method via any
+      
+      let openedOptions: any;
+      const originalExecute = vscode.commands.executeCommand;
+      (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
+        if (cmd === 'vscode.openFolder') {
+          openedOptions = args[1];
+          return;
+        }
+        return originalExecute(cmd, ...args);
       };
 
-    await vscode.commands.executeCommand('yggdrasil.switch', makeWorktreeItem());
-    assert.ok(updateCalled, 'updateWorkspaceFolders should have been called');
-    assert.strictEqual(ctx.globalState.get('yggdrasil.switchMode'), undefined, 'should NOT persist when remember=false');
+      try {
+        await (reg as any).switchWorktree(makeWorktreeItem('main', '/repo/main'));
+        assert.deepStrictEqual(openedOptions, { forceNewWindow: true });
+      } finally {
+        (vscode.commands as any).executeCommand = originalExecute;
+      }
+    });
+
+    test('does nothing (no stored mode, dialog cancelled) when no preference stored', async () => {
+      const ctx = makeMockContext();
+      const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
+
+      const originalCreateQP = vscode.window.createQuickPick;
+      const originalExecute = vscode.commands.executeCommand;
+
+      (vscode.window as any).createQuickPick = () => ({
+        title: '', placeholder: '', items: [], buttons: [],
+        activeItems: [],
+        onDidTriggerButton: () => ({ dispose: () => {} }),
+        onDidAccept: () => ({ dispose: () => {} }),
+        onDidHide: (cb: () => void) => { cb(); return { dispose: () => {} }; },
+        show: () => {},
+        dispose: () => {},
+      });
+
+      let openCalled = false;
+      (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
+        if (cmd === 'vscode.openFolder') { openCalled = true; return; }
+        return originalExecute(cmd, ...args);
+      };
+
+      try {
+        await (reg as any).switchWorktree(makeWorktreeItem('feature', '/repo/feature'));
+        assert.strictEqual(openCalled, false, 'should not open when dialog is dismissed');
+      } finally {
+        (vscode.window as any).createQuickPick = originalCreateQP;
+        (vscode.commands as any).executeCommand = originalExecute;
+      }
+    });
+
+    test('uses stored replace preference directly', async () => {
+      const ctx = makeMockContext({ 'ygg.switchMode': 'replace' });
+      const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
+
+      let openedOptions: any;
+      const originalExecute = vscode.commands.executeCommand;
+      (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
+        if (cmd === 'vscode.openFolder') {
+          openedOptions = args[1];
+          return;
+        }
+        return originalExecute(cmd, ...args);
+      };
+
+      try {
+        await (reg as any).switchWorktree(makeWorktreeItem());
+        assert.deepStrictEqual(openedOptions, { forceNewWindow: false });
+      } finally {
+        (vscode.commands as any).executeCommand = originalExecute;
+      }
+    });
+
+    test('uses stored addWorkspace preference directly', async () => {
+      const ctx = makeMockContext({ 'ygg.switchMode': 'addWorkspace' });
+      const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
+
+      let updateCalled = false;
+      const originalUpdate = vscode.workspace.updateWorkspaceFolders;
+      (vscode.workspace as any).updateWorkspaceFolders = () => { updateCalled = true; return true; };
+
+      try {
+        await (reg as any).switchWorktree(makeWorktreeItem());
+        assert.ok(updateCalled);
+      } finally {
+        (vscode.workspace as any).updateWorkspaceFolders = originalUpdate;
+      }
+    });
+
+    test('does nothing when item is undefined', async () => {
+      const ctx = makeMockContext();
+      const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
+
+      let openCalled = false;
+      const originalExecute = vscode.commands.executeCommand;
+      (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
+        if (cmd === 'vscode.openFolder') { openCalled = true; return; }
+        return originalExecute(cmd, ...args);
+      };
+
+      try {
+        await (reg as any).switchWorktree(undefined);
+        assert.strictEqual(openCalled, false);
+      } finally {
+        (vscode.commands as any).executeCommand = originalExecute;
+      }
+    });
   });
 
-  test('unrecognized action is silently ignored', async () => {
-    const ctx = makeMockContext();
-    const factory = makeFactory({ action: 'unknown_action', mode: 'newWindow', remember: false });
-    const registry = new CommandRegistry(ctx, makeMockGit(), makeMockProvider(), factory);
-    registry.register();
+  suite('ygg.selectAndSwitch — palette picker', () => {
+    test('shows informationMessage when no switchable worktrees exist', async () => {
+      const ctx = makeMockContext();
+      const allCurrent = [{ path: '/repo', branch: 'main', isCurrent: true, pathExists: true, head: '', isDirty: false, locked: false, bare: false }];
+      const reg = new CommandRegistry(ctx, makeMockGit(allCurrent), makeMockProvider());
 
-    // Should not throw
-    await assert.doesNotReject(
-      Promise.resolve(vscode.commands.executeCommand('yggdrasil.switch', makeWorktreeItem()))
-    );
+      let infoShown = false;
+      const originalInfo = vscode.window.showInformationMessage;
+      (vscode.window as any).showInformationMessage = async () => { infoShown = true; return undefined; };
+
+      try {
+        await (reg as any).selectAndSwitch();
+        assert.ok(infoShown);
+      } finally {
+        vscode.window.showInformationMessage = originalInfo;
+      }
+    });
+
+    test('calls listWorktrees to populate picker', async () => {
+      const ctx = makeMockContext();
+      let listCalled = false;
+      const git = {
+        ...makeMockGit(),
+        listWorktrees: async () => { listCalled = true; return []; },
+      } as unknown as GitService;
+      const reg = new CommandRegistry(ctx, git, makeMockProvider());
+
+      const originalInfo = vscode.window.showInformationMessage;
+      (vscode.window as any).showInformationMessage = async () => undefined;
+
+      try {
+        await (reg as any).selectAndSwitch();
+        assert.ok(listCalled);
+      } finally {
+        vscode.window.showInformationMessage = originalInfo;
+      }
+    });
   });
 
-  test('stored mode skips dialog and uses saved preference', async () => {
-    const ctx = makeMockContext({ 'yggdrasil.switchMode': 'replace' });
-    let dialogShown = false;
-    const factory: WebviewPanelFactory = () => {
-      dialogShown = true;
-      return { dispose: () => {} };
-    };
-    const registry = new CommandRegistry(ctx, makeMockGit(), makeMockProvider(), factory);
-    registry.register();
+  suite('null-guard — commands do nothing without item', () => {
+    test('remove without item does not call removeWorktree', async () => {
+      const ctx = makeMockContext();
+      let removeCalled = false;
+      const git = {
+        ...makeMockGit(),
+        removeWorktree: async () => { removeCalled = true; },
+      } as unknown as GitService;
+      const reg = new CommandRegistry(ctx, git, makeMockProvider());
 
-    let openedOptions: unknown;
-    (vscode.commands as unknown as { executeCommand: Function }).executeCommand = async (cmd: string, _uri: vscode.Uri, opts: unknown) => {
-      if (cmd === 'vscode.openFolder') { openedOptions = opts; }
-    };
+      await (reg as any).removeWorktree(undefined);
+      assert.strictEqual(removeCalled, false);
+    });
 
-    await vscode.commands.executeCommand('yggdrasil.switch', makeWorktreeItem());
-    assert.strictEqual(dialogShown, false, 'dialog should be skipped when preference is stored');
-    assert.deepStrictEqual(openedOptions, { forceNewWindow: false });
+    test('copyPath without item does not throw', async () => {
+      // Use the already registered command from the extension activation
+      await vscode.commands.executeCommand('ygg.copyPath', undefined);
+    });
+
+    test('revealInOs without item does not throw', async () => {
+      await vscode.commands.executeCommand('ygg.revealInOs', undefined);
+    });
   });
 });

@@ -8,7 +8,7 @@
 
 ## Overview
 
-A VS Code extension that surfaces all git worktrees in a dedicated Explorer panel and lets the user switch between them via a WebStorm-style GUI dialog. Scope is v1 only; v2 (sneak-peek explorer view) and v3 (AI-generated insights) are out of scope.
+A VS Code extension that surfaces all git worktrees for a project root in a dedicated Activity Bar panel and lets the user switch between them via a WebStorm-style GUI dialog. Scope is v1 only; v2 (sneak-peek explorer view) and v3 (AI-generated insights) are out of scope.
 
 **Minimum VS Code version:** `^1.74.0` (required for `RelativePattern` with `vscode.Uri` base)
 
@@ -30,6 +30,8 @@ yggdrasil/
 │   │   └── CommandRegistry.ts     ← registers all commands, switch-prompt logic
 │   └── utils/
 │       └── execFileNoThrow.ts     ← safe process runner (no shell, structured output)
+├── images/
+│   └── worktree.svg               ← Activity Bar icon (trunk + branch nodes, currentColor)
 ├── package.json
 ├── tsconfig.json
 ├── .vscodeignore                  ← excludes src/, docs/, node_modules/, test/ from package
@@ -248,8 +250,13 @@ Implemented as a **regular `createWebviewPanel` tab** — VS Code has no OS-leve
 "engines": { "vscode": "^1.74.0" },
 "activationEvents": ["onView:yggdrasil.worktrees"],
 "contributes": {
+  "viewsContainers": {
+    "activitybar": [
+      { "id": "yggdrasil", "title": "Git Worktree Explorer", "icon": "images/worktree.svg" }
+    ]
+  },
   "views": {
-    "explorer": [{ "id": "yggdrasil.worktrees", "name": "Git Worktrees" }]
+    "yggdrasil": [{ "id": "yggdrasil.worktrees", "name": "Git Worktrees" }]
   },
   "commands": [
     { "command": "yggdrasil.refresh",    "title": "Refresh",                    "icon": "$(refresh)" },
