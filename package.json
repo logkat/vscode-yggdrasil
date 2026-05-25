@@ -100,6 +100,17 @@
         "icon": "$(add)"
       },
       {
+        "command": "ygg.prune",
+        "title": "Prune Missing Worktrees",
+        "category": "ygg",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "ygg.setBaseBranch",
+        "title": "Set Base Branch...",
+        "category": "ygg"
+      },
+      {
         "command": "ygg.remove",
         "title": "Remove Worktree",
         "icon": "$(trash)"
@@ -128,6 +139,11 @@
           "command": "ygg.add",
           "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
           "group": "navigation"
+        },
+        {
+          "command": "ygg.prune",
+          "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
+          "group": "navigation"
         }
       ],
       "commandPalette": [
@@ -146,6 +162,16 @@
           "command": "ygg.switch",
           "when": "viewItem == worktreeItem",
           "group": "1_actions"
+        },
+        {
+          "command": "ygg.prune",
+          "when": "viewItem == worktreeItemMissing",
+          "group": "1_actions"
+        },
+        {
+          "command": "ygg.setBaseBranch",
+          "when": "viewItem == worktreeItem || viewItem == worktreeItemCurrent",
+          "group": "2_actions"
         },
         {
           "command": "ygg.remove",

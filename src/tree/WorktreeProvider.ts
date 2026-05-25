@@ -45,6 +45,9 @@ export class WorktreeItem extends vscode.TreeItem {
     if (this.worktree.isDirty) {
       md.appendMarkdown(`- **Status:** $(source-control) Has uncommitted working tree changes\n`);
     }
+    if (this.worktree.aheadCount && this.worktree.aheadCount > 0) {
+      md.appendMarkdown(`- **Status:** $(git-commit) Ahead of base by **${this.worktree.aheadCount}** commit${this.worktree.aheadCount === 1 ? '' : 's'}\n`);
+    }
     
     return md;
   }
@@ -67,6 +70,9 @@ export class WorktreeItem extends vscode.TreeItem {
     }
     if (wt.isDirty) {
       return new vscode.ThemeIcon('source-control');
+    }
+    if (wt.aheadCount && wt.aheadCount > 0) {
+      return new vscode.ThemeIcon('git-commit', new vscode.ThemeColor('charts.blue'));
     }
     return new vscode.ThemeIcon('git-branch');
   }

@@ -177,6 +177,14 @@ function buildHtml(nonce: string): string {
           <td>Create a new worktree for an existing or new branch</td>
         </tr>
         <tr>
+          <td><code>ygg: Prune Missing Worktrees</code></td>
+          <td>Run git worktree prune to clean up deleted worktree entries</td>
+        </tr>
+        <tr>
+          <td><code>ygg: Set Base Branch...</code></td>
+          <td>Configure a specific branch to compare a worktree against</td>
+        </tr>
+        <tr>
           <td><code>ygg: Clear Remembered Switch Mode</code></td>
           <td>Forget the remembered open mode so the dialog shows again</td>
         </tr>
@@ -192,16 +200,20 @@ function buildHtml(nonce: string): string {
     <h2>Tips</h2>
     <div class="tips">
       <div class="tip">
+        <span class="tip-icon">🔎</span>
+        <span><strong>Branch Diff Explorer:</strong> Expand any worktree to see ALL changes (committed, staged, and untracked) relative to its base.</span>
+      </div>
+      <div class="tip">
+        <span class="tip-icon">📊</span>
+        <span><strong>Ahead-of-Base:</strong> A blue <span style="font-family: monospace;">$(git-commit)</span> icon means a branch is clean but has commits not yet in its base branch.</span>
+      </div>
+      <div class="tip">
         <span class="tip-icon">📌</span>
-        <span>Pin your preferred open mode by clicking the <strong>pin button</strong> in the switch dialog — the inline button will skip the dialog from then on.</span>
+        <span>Pin your preferred open mode in the switch dialog — the inline button will skip the dialog from then on.</span>
       </div>
       <div class="tip">
         <span class="tip-icon">🔄</span>
-        <span>The panel <strong>auto-refreshes</strong> when worktrees are added or removed. Use <strong>Refresh</strong> in the panel toolbar if the list looks stale.</span>
-      </div>
-      <div class="tip">
-        <span class="tip-icon">⚠️</span>
-        <span>Worktrees with a <strong>warning icon</strong> have a missing path on disk — run <code>git worktree prune</code> to clean them up.</span>
+        <span>The panel <strong>auto-refreshes</strong> when worktrees or branches change. Use <strong>Refresh</strong> in the panel toolbar if needed.</span>
       </div>
     </div>
   </section>

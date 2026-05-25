@@ -43,6 +43,18 @@ activate()
 | `RelativePattern(Uri, '.git/...')` | Avoids `files.watcherExclude` suppressing `.git/` watchers |
 | Activity Bar container | Dedicated panel is discoverable; Explorer view is hidden by default |
 | `globalState` for switch mode | Persists across sessions; cleared via Command Palette or status bar |
+| `workspaceState` for base branch | Remembers per-worktree comparison bases without cluttering global config |
+
+---
+
+## Features
+
+- **Activity Bar Explorer:** At-a-glance view of all linked worktrees.
+- **Branch Diff Explorer:** Expand a worktree to see every file changed since the merge-base (committed, staged, and untracked).
+- **Ahead/Dirty Indicators:** Distinct icons for "ahead of base" (blue commit icon) and "working tree dirty" (amber dot).
+- **Flexible Switching:** Open worktrees in a new window, replace current, or add to workspace.
+- **Custom Bases:** Set a specific comparison base branch per-worktree to track changes accurately in complex repos.
+- **Git Pruning:** Integrated UI to clean up stale worktree entries.
 
 ---
 
@@ -100,15 +112,17 @@ Test files live alongside source in `src/test/suite/`.
 
 | Command ID | Title | Trigger |
 |---|---|---|
-| `yggdrasil.switch` | Switch Worktree | Inline button on tree item |
-| `yggdrasil.selectAndSwitch` | Switch Worktree… | Command Palette |
-| `yggdrasil.add` | Add Worktree | Toolbar + Command Palette |
-| `yggdrasil.remove` | Remove Worktree | Context menu |
-| `yggdrasil.refresh` | Refresh | Toolbar button |
-| `yggdrasil.copyPath` | Copy Path | Context menu |
-| `yggdrasil.revealInOs` | Reveal in Finder / Explorer | Context menu |
-| `yggdrasil.clearSwitchMode` | Clear Remembered Switch Mode | Command Palette |
-| `yggdrasil.welcome` | Welcome | Command Palette |
+| `ygg.switch` | Switch Worktree | Inline button on tree item |
+| `ygg.selectAndSwitch` | Switch Worktree… | Command Palette |
+| `ygg.add` | Add Worktree | Toolbar + Command Palette |
+| `ygg.prune` | Prune Missing Worktrees | Toolbar + Context menu |
+| `ygg.setBaseBranch` | Set Base Branch... | Context menu |
+| `ygg.remove` | Remove Worktree | Context menu |
+| `ygg.refresh` | Refresh | Toolbar button |
+| `ygg.copyPath` | Copy Path | Context menu |
+| `ygg.revealInOs` | Reveal in Finder / Explorer | Context menu |
+| `ygg.clearSwitchMode` | Clear Remembered Switch Mode | Command Palette |
+| `ygg.welcome` | Welcome | Command Palette |
 
 ### Switch mode behaviour
 
