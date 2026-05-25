@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { GitService, Worktree } from '../git/GitService';
+import { GitService, Worktree, FileStatus } from '../git/GitService';
 
 export type WorktreeContextValue =
   | 'worktreeItem'
@@ -12,13 +12,38 @@ export class WorktreeItem extends vscode.TreeItem {
     public readonly worktree: Worktree,
     private readonly repoRoot: string
   ) {
-    super(worktree.branch, vscode.TreeItemCollapsibleState.None);
+    super(
+      worktree.branch,
+      (worktree.pathExists && !worktree.bare)
+        ? vscode.TreeItemCollapsibleState.Collapsed
+        : vscode.TreeItemCollapsibleState.None,
+    );
 
     this.description = path.relative(repoRoot, worktree.path) || '.';
-    this.tooltip = worktree.path;
     this.contextValue = WorktreeItem.contextValueFor(worktree);
     this.iconPath = WorktreeItem.iconFor(worktree);
-    this.command = { command: 'ygg.welcome', title: 'Open Welcome' };
+    this.tooltip = this.getRichTooltip();
+  }
+
+  private getRichTooltip(): vscode.MarkdownString {
+    const md = new vscode.MarkdownString();
+    md.isTrusted = true;
+    md.appendMarkdown(`### Worktree: ${this.worktree.branch}\n\n`);
+    md.appendMarkdown(`---\n\n`);
+    md.appendMarkdown(`- **Path:** \`${this.worktree.path}\`\n`);
+    md.appendMarkdown(`- **HEAD:** \`${this.worktree.head.slice(0, 7)}\`\n`);
+    
+    if (this.worktree.isCurrent) {
+      md.appendMarkdown(`- **Status:** $(check) Current active worktree\n`);
+    }
+    if (this.worktree.locked) {
+      md.appendMarkdown(`- **Status:** $(lock) Locked\n`);
+    }
+    if (this.worktree.isDirty) {
+      md.appendMarkdown(`- **Status:** $(source-control) Has uncommitted working tree changes\n`);
+    }
+    
+    return md;
   }
 
   private static contextValueFor(wt: Worktree): WorktreeContextValue {
@@ -44,8 +69,65 @@ export class WorktreeItem extends vscode.TreeItem {
   }
 }
 
-export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem> {
-  private readonly _onDidChangeTreeData = new vscode.EventEmitter<WorktreeItem | undefined | null | void>();
+export class WorktreeFileItem extends vscode.TreeItem {
+  constructor(
+    public readonly file: FileStatus,
+    public readonly worktreePath: string,
+    public readonly branch: string,
+    public readonly baseSha: string,
+  ) {
+    super(file.relativePath, vscode.TreeItemCollapsibleState.None);
+    this.description = file.status;
+    this.contextValue = 'worktreeFile';
+    this.iconPath = WorktreeFileItem.iconFor(file.status);
+    this.tooltip = this.getRichTooltip();
+    this.command = {
+      command: 'ygg.openDiff',
+      title: 'Open Diff',
+      arguments: [this],
+    };
+  }
+
+  private getRichTooltip(): vscode.MarkdownString {
+    const statusMap: Record<string, string> = {
+      'M': 'Modified',
+      'A': 'Added',
+      'D': 'Deleted',
+      'R': 'Renamed',
+      'C': 'Copied',
+      'U': 'Unmerged (Conflict)',
+      'T': 'Type Changed',
+      '?': 'Untracked'
+    };
+    const statusName = statusMap[this.file.status] || 'Changed';
+    
+    const md = new vscode.MarkdownString();
+    md.appendMarkdown(`### ${statusName}\n\n`);
+    md.appendMarkdown(`\`${this.file.relativePath}\`\n\n`);
+    md.appendMarkdown(`---\n\n`);
+    md.appendMarkdown(`Comparing **${this.branch}** version against branch base (\`${this.baseSha.slice(0, 7)}\`).`);
+    return md;
+  }
+
+  private static iconFor(status: FileStatus['status']): vscode.ThemeIcon {
+    switch (status) {
+      case 'M': return new vscode.ThemeIcon('edit');
+      case 'A': case '?': return new vscode.ThemeIcon('add');
+      case 'D': return new vscode.ThemeIcon('trash');
+      case 'R': return new vscode.ThemeIcon('arrow-right');
+      case 'C': return new vscode.ThemeIcon('copy');
+      case 'U': return new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground'));
+      case 'T': return new vscode.ThemeIcon('file-submodule');
+      default: {
+        const _exhaustive: never = status;
+        return new vscode.ThemeIcon('file');
+      }
+    }
+  }
+}
+
+export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem | WorktreeFileItem | vscode.TreeItem> {
+  private readonly _onDidChangeTreeData = new vscode.EventEmitter<WorktreeItem | WorktreeFileItem | vscode.TreeItem | undefined | null | void>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private watchers: vscode.FileSystemWatcher[] = [];
@@ -57,11 +139,36 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem> {
     this._onDidChangeTreeData.fire();
   }
 
-  getTreeItem(element: WorktreeItem): vscode.TreeItem {
+  getTreeItem(element: WorktreeItem | WorktreeFileItem | vscode.TreeItem): vscode.TreeItem {
     return element;
   }
 
-  async getChildren(): Promise<WorktreeItem[]> {
+  async getChildren(element?: WorktreeItem | WorktreeFileItem | vscode.TreeItem): Promise<(WorktreeItem | WorktreeFileItem | vscode.TreeItem)[]> {
+    // Leaf nodes have no children
+    if (element instanceof WorktreeFileItem) { return []; }
+
+    // Expanding a worktree item → show branch changes (committed + staged + working tree)
+    if (element instanceof WorktreeItem) {
+      try {
+        const { files, baseSha, baseRef } = await this.git.getWorktreeBranchChanges(element.worktree.path);
+        if (files.length === 0) {
+          const item = new vscode.TreeItem('No changes on branch', vscode.TreeItemCollapsibleState.None);
+          item.description = `relative to ${baseRef}`;
+          item.tooltip = new vscode.MarkdownString(`This branch is up-to-date with **${baseRef}** (at \`${baseSha.slice(0, 7)}\`).`);
+          item.iconPath = new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
+          return [item];
+        }
+        return files.map(f => new WorktreeFileItem(f, element.worktree.path, element.worktree.branch, baseSha));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const errorItem = new vscode.TreeItem(`Error: ${msg}`, vscode.TreeItemCollapsibleState.None);
+        errorItem.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('list.errorForeground'));
+        errorItem.tooltip = new vscode.MarkdownString(`**Git Error:**\n\n${msg}`);
+        return [errorItem];
+      }
+    }
+
+    // Root — existing logic
     let repoRoot: string;
     let worktrees: Worktree[];
 
