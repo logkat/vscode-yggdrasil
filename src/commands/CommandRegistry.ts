@@ -38,6 +38,12 @@ export class CommandRegistry {
 
     disposables.push(vscode.commands.registerCommand('ygg.add', () => this.addWorktree()));
 
+    disposables.push(vscode.commands.registerCommand('ygg.prune', () => this.pruneWorktrees()));
+
+    disposables.push(vscode.commands.registerCommand('ygg.setBaseBranch', (item?: WorktreeItem) => 
+      this.setBaseBranch(item)
+    ));
+
     disposables.push(vscode.commands.registerCommand('ygg.remove', (item?: WorktreeItem) =>
       this.removeWorktree(item)
     ));
@@ -196,6 +202,49 @@ export class CommandRegistry {
     } catch (err: unknown) {
       vscode.window.showErrorMessage(`Add worktree failed: ${err instanceof Error ? err.message : String(err)}`);
     }
+  }
+
+  private async pruneWorktrees(): Promise<void> {
+    try {
+      await this.git.pruneWorktrees();
+      this.provider.refresh();
+      vscode.window.showInformationMessage('Missing worktrees pruned successfully.');
+    } catch (err: unknown) {
+      vscode.window.showErrorMessage(`Prune failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  private async setBaseBranch(item?: WorktreeItem): Promise<void> {
+    if (!item) { return; }
+    const wtPath = item.worktree.path;
+    const currentBase = this.context.workspaceState.get<string>(`ygg.baseBranch:${wtPath}`);
+
+    const options: (vscode.QuickPickItem & { branch?: string, clear?: boolean })[] = [
+      { label: '$(close) Clear (use default)', description: 'Reset to global setting or upstream', clear: true },
+      { label: '', kind: vscode.QuickPickItemKind.Separator },
+      { label: '$(edit) Custom...', description: 'Enter a branch name manually' }
+    ];
+
+    const picked = await vscode.window.showQuickPick(options, {
+      title: `Set Base Branch for ${item.worktree.branch}`,
+      placeHolder: currentBase ? `Current: ${currentBase}` : 'Enter base branch name'
+    });
+
+    if (!picked) { return; }
+
+    let newBase: string | undefined;
+    if (picked.clear) {
+      newBase = undefined;
+    } else {
+      newBase = await vscode.window.showInputBox({
+        prompt: `Enter base branch for ${item.worktree.branch}`,
+        value: currentBase || 'main'
+      });
+      if (!newBase) { return; }
+    }
+
+    await this.context.workspaceState.update(`ygg.baseBranch:${wtPath}`, newBase);
+    this.provider.refresh();
   }
 
   private async removeWorktree(item?: WorktreeItem): Promise<void> {

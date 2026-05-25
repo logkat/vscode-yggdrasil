@@ -17,7 +17,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   try {
     const git = new GitService(
       () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-      () => vscode.workspace.getConfiguration('ygg').get<string>('baseBranch') || undefined,
+      (worktreePath?: string) => {
+        if (worktreePath) {
+          const perWorktreeBase = context.workspaceState.get<string>(`ygg.baseBranch:${worktreePath}`);
+          if (perWorktreeBase) { return perWorktreeBase; }
+        }
+        return vscode.workspace.getConfiguration('ygg').get<string>('baseBranch') || undefined;
+      },
     );
 
     const decorationProvider = new WorktreeDecorationProvider();

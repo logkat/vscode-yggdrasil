@@ -13,6 +13,8 @@ export interface Worktree {
   locked: boolean;
   bare: boolean;
   dotGit?: string;
+  baseRef?: string;
+  aheadCount?: number;
 }
 
 export interface FileStatus {
@@ -159,7 +161,7 @@ export class GitService {
 
   constructor(
     public readonly getWorkspaceRoot: () => string | undefined,
-    private readonly getBaseBranch: () => string | undefined = () => undefined,
+    private readonly getBaseBranch: (worktreePath?: string) => string | undefined = () => undefined,
     private readonly runRaw: typeof execFileNoThrow = execFileNoThrow,
   ) {}
 
@@ -206,15 +208,24 @@ export class GitService {
     const partial = parsePorcelain(result.stdout, currentRealPath);
 
     const self = this;
-    const enrichTasks = partial.map((wt) => async (): Promise<{ isDirty: boolean; dotGit?: string }> => {
+    const enrichTasks = partial.map((wt) => async (): Promise<{ isDirty: boolean; aheadCount?: number; dotGit?: string }> => {
       if (!wt.pathExists || wt.bare) { return { isDirty: false }; }
 
-      const [statusRes, revParseRes] = await Promise.all([
+      // Resolve base branch for this specific worktree
+      const baseRef = await self.resolveBaseRef(wt.path);
+
+      const [statusRes, revParseRes, aheadRes] = await Promise.all([
         self.run('git', ['status', '--short'], { cwd: wt.path }),
-        self.run('git', ['rev-parse', '--git-dir'], { cwd: wt.path })
+        self.run('git', ['rev-parse', '--git-dir'], { cwd: wt.path }),
+        self.run('git', ['rev-list', '--count', `${baseRef}..HEAD`], { cwd: wt.path })
       ]);
 
       const isDirty = statusRes.status === 0 && statusRes.stdout.trim().length > 0;
+      let aheadCount: number | undefined;
+      if (aheadRes.status === 0) {
+        aheadCount = parseInt(aheadRes.stdout.trim(), 10);
+      }
+
       let dotGit: string | undefined;
       if (revParseRes.status === 0) {
         dotGit = revParseRes.stdout.trim();
@@ -222,13 +233,14 @@ export class GitService {
           dotGit = path.resolve(wt.path, dotGit);
         }
       }
-      return { isDirty, dotGit };
+      return { isDirty, aheadCount, dotGit };
     });
 
     const enrichResults = await Promise.all(enrichTasks.map(t => t()));
     const freshWorktrees = partial.map((wt, i) => ({
       ...wt,
       isDirty: enrichResults[i].isDirty,
+      aheadCount: enrichResults[i].aheadCount,
       dotGit: enrichResults[i].dotGit
     }));
 
@@ -253,6 +265,14 @@ export class GitService {
     if (result.status !== 0) { throw new Error(result.stderr.trim()); }
   }
 
+  async pruneWorktrees(): Promise<void> {
+    const repoRoot = await this.getRepoRoot();
+    const result = await this.run(
+      'git', ['worktree', 'prune'], { cwd: repoRoot }
+    );
+    if (result.status !== 0) { throw new Error(result.stderr.trim()); }
+  }
+
   async getWorktreeStatus(worktreePath: string): Promise<FileStatus[]> {
     try {
       const result = await this.run('git', ['status', '--porcelain'], { cwd: worktreePath });
@@ -268,7 +288,7 @@ export class GitService {
   }
 
   private async resolveBaseRef(worktreePath: string): Promise<string> {
-    const configured = this.getBaseBranch();
+    const configured = this.getBaseBranch(worktreePath);
     if (configured) { return configured; }
     const result = await this.run('git', ['rev-parse', '--abbrev-ref', '@{upstream}'], { cwd: worktreePath });
     if (result.status === 0 && result.stdout.trim()) { return result.stdout.trim(); }
