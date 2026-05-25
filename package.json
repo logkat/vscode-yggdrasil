@@ -11,8 +11,15 @@
     "Other"
   ],
   "activationEvents": [
-    "*"
+    "onView:ygg.worktrees",
+    "onCommand:ygg.selectAndSwitch",
+    "onCommand:ygg.welcome",
+    "onStartupFinished"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prakharsingh007/yggdrasil"
+  },
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true
@@ -136,7 +143,8 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "test": "node ./out/test/runTests.js",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
