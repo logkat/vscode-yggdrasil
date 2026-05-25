@@ -2,6 +2,7 @@
 .vscode-test/**
 .agent/**
 .claude/**
+.claude-flow/**
 .idea/**
 .remember/**
 src/**
@@ -15,3 +16,7 @@ tsconfig.json
 **/*.ts
 !out/**
 node_modules/**
+ruvector.db
+claude-flow.config.json
+.DS_Store
+**/.DS_Store
