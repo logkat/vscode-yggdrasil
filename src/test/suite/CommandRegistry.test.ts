@@ -109,18 +109,10 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
       const ctx = makeMockContext();
       const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
 
-      const originalCreateQP = vscode.window.createQuickPick;
+      const originalShowQP = vscode.window.showQuickPick;
       const originalExecute = vscode.commands.executeCommand;
 
-      (vscode.window as any).createQuickPick = () => ({
-        title: '', placeholder: '', items: [], buttons: [],
-        activeItems: [],
-        onDidTriggerButton: () => ({ dispose: () => {} }),
-        onDidAccept: () => ({ dispose: () => {} }),
-        onDidHide: (cb: () => void) => { cb(); return { dispose: () => {} }; },
-        show: () => {},
-        dispose: () => {},
-      });
+      (vscode.window as any).showQuickPick = async () => undefined;
 
       let openCalled = false;
       (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
@@ -132,7 +124,7 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
         await (reg as any).switchWorktree(makeWorktreeItem('feature', '/repo/feature'));
         assert.strictEqual(openCalled, false, 'should not open when dialog is dismissed');
       } finally {
-        (vscode.window as any).createQuickPick = originalCreateQP;
+        (vscode.window as any).showQuickPick = originalShowQP;
         (vscode.commands as any).executeCommand = originalExecute;
       }
     });

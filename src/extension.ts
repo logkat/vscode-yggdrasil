@@ -3,6 +3,7 @@ import { GitService } from './git/GitService';
 import { WorktreeProvider } from './tree/WorktreeProvider';
 import { CommandRegistry } from './commands/CommandRegistry';
 import { maybeShowWelcome, showWelcome } from './welcome/WelcomePage';
+import { YggContentProvider } from './content/YggContentProvider';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const channel = vscode.window.createOutputChannel('Yggdrasil Diagnostics');
@@ -12,7 +13,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   console.log('Yggdrasil extension is activating...');
   try {
     const git = new GitService(
-      () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+      () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+      () => vscode.workspace.getConfiguration('ygg').get<string>('baseBranch') || undefined,
     );
 
     const provider = new WorktreeProvider(git);
@@ -30,9 +32,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const registry = new CommandRegistry(context, git, provider);
     const commands = registry.register();
 
+    const contentProvider = new YggContentProvider();
+    const contentProviderDisposable = vscode.workspace.registerTextDocumentContentProvider(
+      'ygg-git',
+      contentProvider
+    );
+
     const welcomeCommand = vscode.commands.registerCommand('ygg.welcome', () => showWelcome(context));
 
-    context.subscriptions.push(treeView, explorerView, welcomeCommand, ...commands, provider);
+    context.subscriptions.push(
+      treeView.onDidChangeVisibility(({ visible }) => {
+        if (visible) { showWelcome(context); }
+      }),
+      explorerView.onDidChangeVisibility(({ visible }) => {
+        if (visible) { showWelcome(context); }
+      })
+    );
+
+    context.subscriptions.push(treeView, explorerView, welcomeCommand, contentProviderDisposable, ...commands, provider);
 
     const registeredCommands = await vscode.commands.getCommands(true);
     const yggdrasilCommands = registeredCommands.filter(c => c.startsWith('ygg.'));

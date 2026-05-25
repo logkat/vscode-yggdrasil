@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GitService } from '../git/GitService';
-import { WorktreeItem, WorktreeProvider } from '../tree/WorktreeProvider';
+import { WorktreeItem, WorktreeFileItem, WorktreeProvider } from '../tree/WorktreeProvider';
+import { makeUri } from '../content/YggContentProvider';
 
 type SwitchMode = 'newWindow' | 'replace' | 'addWorkspace';
 const STATE_KEY = 'ygg.switchMode';
@@ -53,6 +54,11 @@ export class CommandRegistry {
         vscode.Uri.file(item.worktree.path)
       );
     }));
+
+    disposables.push(vscode.commands.registerCommand(
+      'ygg.openDiff',
+      (item?: WorktreeFileItem) => this.openDiff(item)
+    ));
 
     return disposables;
   }
@@ -229,6 +235,20 @@ export class CommandRegistry {
     this.statusBarItem.tooltip = 'Click to clear remembered worktree switch mode';
     this.statusBarItem.command = 'ygg.clearSwitchMode';
     this.statusBarItem.show();
+  }
+
+  private async openDiff(item?: WorktreeFileItem): Promise<void> {
+    if (!item) { return; }
+    const { file, worktreePath, branch, baseSha } = item;
+    const baseUri = makeUri('BASE', worktreePath, file.relativePath, baseSha);
+    const workUri = makeUri('WORK', worktreePath, file.relativePath);
+    const title   = `${branch} — ${file.relativePath} (branch base ↔ working tree)`;
+    
+    try {
+      await vscode.commands.executeCommand('vscode.diff', baseUri, workUri, title, { preview: true });
+    } catch (err: unknown) {
+      vscode.window.showErrorMessage(`Failed to open diff: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private async clearSwitchMode(): Promise<void> {

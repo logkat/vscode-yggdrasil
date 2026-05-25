@@ -12,6 +12,7 @@
   ],
   "activationEvents": [
     "onView:ygg.worktrees",
+    "onView:ygg.worktrees.explorer",
     "onCommand:ygg.selectAndSwitch",
     "onCommand:ygg.welcome",
     "onStartupFinished"
@@ -27,6 +28,21 @@
   },
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Yggdrasil",
+      "properties": {
+        "ygg.showInExplorer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the Git Worktree Explorer in the explorer sidebar."
+        },
+        "ygg.baseBranch": {
+          "type": "string",
+          "default": "",
+          "description": "Branch to compare worktrees against. Leave empty to auto-detect the tracking branch (falls back to 'main')."
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -95,6 +111,10 @@
       {
         "command": "ygg.revealInOs",
         "title": "Reveal in Finder / Explorer"
+      },
+      {
+        "command": "ygg.openDiff",
+        "title": "Open Diff"
       }
     ],
     "menus": {
@@ -109,6 +129,9 @@
           "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
           "group": "navigation"
         }
+      ],
+      "commandPalette": [
+        { "command": "ygg.openDiff", "when": "false" }
       ],
       "view/item/context": [
         {
