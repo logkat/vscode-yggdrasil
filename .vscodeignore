@@ -1,8 +1,14 @@
 .vscode/**
 .vscode-test/**
+.agent/**
+.claude/**
+.idea/**
+.remember/**
 src/**
 docs/**
 test/**
+temp_repo/**
+CLAUDE.md
 .gitignore
 tsconfig.json
 **/*.map
