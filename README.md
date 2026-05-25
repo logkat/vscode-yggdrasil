@@ -1,58 +1,129 @@
 # Yggdrasil — Git Worktree Explorer
 
-Explore and switch git worktrees directly from the VS Code sidebar.
-
-<!-- Replace this line with an animated GIF after the first working build -->
-> *Screenshot coming soon*
+VS Code extension that surfaces all git worktrees in a dedicated Activity Bar panel and lets you switch between them with a single click.
 
 ---
 
-## Features
+## Architecture
 
-- **Worktree panel** in the Explorer sidebar — lists all worktrees with branch name, relative path, dirty/clean indicator, and a current-worktree badge
-- **Switch dialog** — WebStorm-style modal with three open modes and a "Remember my choice" checkbox
-- **Add worktree** — create a new worktree for an existing or new branch without leaving VS Code
-- **Remove worktree** — remove a linked worktree with a confirmation prompt
-- **Copy path** — copy the worktree's absolute path to the clipboard
-- **Reveal in Finder / Explorer** — open the worktree folder in the OS file manager
-- **Auto-refresh** — the list updates automatically when worktrees are added or removed
+Three focused modules coordinated by `extension.ts`. The UI layer has no git knowledge; all git I/O flows through `GitService` via `execFileNoThrow`.
+
+```
+src/
+├── extension.ts               — activate/deactivate, wires everything together
+├── welcome/
+│   └── WelcomePage.ts         — first-install webview; also the yggdrasil.welcome command
+├── git/
+│   └── GitService.ts          — parsePorcelain(), listWorktrees(), addWorktree(), removeWorktree()
+├── tree/
+│   └── WorktreeProvider.ts    — TreeDataProvider + WorktreeItem, file watchers
+├── commands/
+│   └── CommandRegistry.ts     — all commands, switch/mode dialog, status bar
+└── utils/
+    └── execFileNoThrow.ts     — safe child_process wrapper (no shell interpolation)
+```
+
+### Data flow
+
+```
+activate()
+  └─ GitService        (reads workspace root, runs git commands)
+  └─ WorktreeProvider  (calls GitService, drives the tree view)
+  └─ CommandRegistry   (registers commands, calls GitService + WorktreeProvider)
+  └─ WelcomePage       (shown once on first install)
+```
+
+### Key design decisions
+
+| Decision | Rationale |
+|---|---|
+| `execFileNoThrow` (no shell) | Prevents shell injection; args are always passed as arrays |
+| `realpathSync` for `isCurrent` | macOS resolves `/tmp` → `/private/tmp`; raw path comparison fails |
+| Semaphore (max 4) for dirty checks | Matches git's own fetch concurrency default |
+| `RelativePattern(Uri, '.git/...')` | Avoids `files.watcherExclude` suppressing `.git/` watchers |
+| Activity Bar container | Dedicated panel is discoverable; Explorer view is hidden by default |
+| `globalState` for switch mode | Persists across sessions; cleared via Command Palette or status bar |
 
 ---
 
-## Installation
+## Prerequisites
 
-1. Install from the [VS Code Marketplace](#) *(link added after publish)*
-2. Open a git repository
-3. The **Git Worktrees** panel appears in the Explorer sidebar
+- Node.js ≥ 18
+- npm ≥ 9
+- VS Code ≥ 1.74.0
+- git ≥ 2.5 (worktree support)
+
+---
+
+## Getting Started
+
+```bash
+git clone <repo>
+cd yggdrasil
+npm install
+```
+
+Open the folder in VS Code, then press **F5**. This compiles the extension and opens an **Extension Development Host** window with Yggdrasil loaded.
+
+The Extension Development Host must be opened with a git repository that has worktrees for the panel to populate. Create worktrees with:
+
+```bash
+git worktree add ../my-feature feature/my-feature
+```
+
+---
+
+## Build
+
+```bash
+npm run compile      # one-shot TypeScript compile → out/
+npm run watch        # incremental watch mode (use with F5 for fast iteration)
+```
+
+Output goes to `out/`. The `main` field in `package.json` points to `out/extension.js`.
+
+---
+
+## Tests
+
+```bash
+npm test
+```
+
+Runs the Mocha suite via `@vscode/test-electron`. Tests spin up a real VS Code instance in headless mode. There are no E2E tests — the suite covers unit-level behaviour (porcelain parsing, command guards, stored-mode logic).
+
+Test files live alongside source in `src/test/suite/`.
 
 ---
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `yggdrasil.refresh` | Refresh the worktree list |
-| `yggdrasil.switch` | Switch to the selected worktree |
-| `yggdrasil.add` | Add a new worktree |
-| `yggdrasil.remove` | Remove the selected worktree |
-| `yggdrasil.copyPath` | Copy the worktree path to clipboard |
-| `yggdrasil.revealInOs` | Reveal the worktree in Finder / Explorer |
+| Command ID | Title | Trigger |
+|---|---|---|
+| `yggdrasil.switch` | Switch Worktree | Inline button on tree item |
+| `yggdrasil.selectAndSwitch` | Switch Worktree… | Command Palette |
+| `yggdrasil.add` | Add Worktree | Toolbar + Command Palette |
+| `yggdrasil.remove` | Remove Worktree | Context menu |
+| `yggdrasil.refresh` | Refresh | Toolbar button |
+| `yggdrasil.copyPath` | Copy Path | Context menu |
+| `yggdrasil.revealInOs` | Reveal in Finder / Explorer | Context menu |
+| `yggdrasil.clearSwitchMode` | Clear Remembered Switch Mode | Command Palette |
+| `yggdrasil.welcome` | Welcome | Command Palette |
 
-No default keybindings are assigned. Bind any command via **Preferences → Keyboard Shortcuts**.
+### Switch mode behaviour
+
+- **Inline button** — uses stored mode preference; opens mode picker on first use.
+- **`selectAndSwitch`** — always shows worktree picker then mode picker. Pin button stores the preference.
+- **`clearSwitchMode`** — forgets stored preference; also reachable via status bar `×` button.
 
 ---
 
-## Switch Dialog
+## Adding a New Command
 
-When you click **Switch Worktree**, a dialog asks how to open the worktree:
-
-| Option | Behaviour |
-|---|---|
-| Open in New Window | Opens the worktree in a fresh VS Code window |
-| Replace Current Window | Reopens the current window at the worktree root |
-| Add to Workspace | Adds the worktree as a folder in the current multi-root workspace |
-
-Check **Remember my choice** to skip the dialog in future. A status bar item appears showing the saved mode — click the **×** to clear it.
+1. Implement the handler method in `CommandRegistry.ts`.
+2. Register it in `register()` and include it in the returned `Disposable[]`.
+3. Add a `commands` entry in `package.json` (and a `menus` entry if it needs a toolbar or context menu slot).
+4. Add a test in `src/test/suite/CommandRegistry.test.ts`.
 
 ---
 
@@ -62,14 +133,3 @@ Check **Remember my choice** to skip the dialog in future. A status bar item app
 |---|---|
 | v2 | Sneak-peek explorer — browse a worktree's files without switching |
 | v3 | AI-generated insights per worktree (branch summary, diff highlights) |
-
----
-
-## Contributing
-
-1. Clone the repo and `npm install`
-2. Open in VS Code and press `F5` to launch the Extension Development Host
-3. Run `npm test` to execute the test suite
-4. Open a PR — please include a test for any new behaviour
-
-Issues and feature requests welcome via GitHub Issues.

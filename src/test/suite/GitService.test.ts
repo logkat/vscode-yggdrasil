@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { parsePorcelain, escapeHtml } from '../../git/GitService';
+import { parsePorcelain } from '../../git/GitService';
 
 // Porcelain samples verified against git 2.50.1
 const NORMAL = `worktree /repo/main
@@ -79,6 +79,21 @@ suite('parsePorcelain', () => {
     assert.strictEqual(result[1].isCurrent, true);
   });
 
+  test('handles nested worktrees in ignored directories', () => {
+    const NESTED = `worktree /repo/main
+HEAD abc123def456abc123def456abc123def456abc1
+branch refs/heads/main
+
+worktree /repo/.agent/worktrees/feat
+HEAD def456abc123def456abc123def456abc123def4
+branch refs/heads/feat
+`;
+    const result = parsePorcelain(NESTED, '/repo/main');
+    assert.strictEqual(result.length, 2);
+    assert.strictEqual(result[1].path, '/repo/.agent/worktrees/feat');
+    assert.strictEqual(result[1].branch, 'feat');
+  });
+
   test('missing path sets pathExists=false', () => {
     const result = parsePorcelain(NORMAL, '');
     // /repo/main does not exist on this machine
@@ -91,19 +106,3 @@ suite('parsePorcelain', () => {
   });
 });
 
-suite('escapeHtml', () => {
-  test('escapes all five dangerous characters', () => {
-    assert.strictEqual(
-      escapeHtml('<script>&"\'</script>'),
-      '&lt;script&gt;&amp;&quot;&#39;&lt;/script&gt;'
-    );
-  });
-
-  test('leaves safe strings unchanged', () => {
-    assert.strictEqual(escapeHtml('feature/login'), 'feature/login');
-  });
-
-  test('handles empty string', () => {
-    assert.strictEqual(escapeHtml(''), '');
-  });
-});

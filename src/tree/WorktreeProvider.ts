@@ -18,6 +18,7 @@ export class WorktreeItem extends vscode.TreeItem {
     this.tooltip = worktree.path;
     this.contextValue = WorktreeItem.contextValueFor(worktree);
     this.iconPath = WorktreeItem.iconFor(worktree);
+    this.command = { command: 'ygg.welcome', title: 'Open Welcome' };
   }
 
   private static contextValueFor(wt: Worktree): WorktreeContextValue {
@@ -52,7 +53,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem> {
 
   constructor(private readonly git: GitService) {}
 
-  refresh(): void {
+  public refresh(): void {
     this._onDidChangeTreeData.fire();
   }
 
@@ -71,6 +72,10 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem> {
     } catch (err: unknown) {
       this.lastError = err instanceof Error ? err.message : String(err);
       return [this.errorItem(this.lastError!)];
+    }
+
+    if (this.git.getWorkspaceRoot()) {
+      this.setupWatchers(repoRoot, worktrees);
     }
 
     return worktrees.map((wt) => {
@@ -100,17 +105,22 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem> {
     item.contextValue = 'worktreeError';
     item.iconPath = new vscode.ThemeIcon('error');
     item.command = {
-      command: 'yggdrasil.refresh',
+      command: 'ygg.refresh',
       title: 'Retry',
     };
     return item;
   }
 
-  setupWatchers(repoRoot: string): vscode.Disposable {
+  setupWatchers(repoRoot: string, worktrees: Worktree[]): void {
     this.disposeWatchers();
 
-    const base = vscode.Uri.file(repoRoot);
+    const refresh = () => {
+      this.git.invalidateCache();
+      this.refresh();
+    };
 
+    // 1. Watch main repo metadata
+    const base = vscode.Uri.file(repoRoot);
     const worktreesWatcher = vscode.workspace.createFileSystemWatcher(
       new vscode.RelativePattern(base, '.git/worktrees/**')
     );
@@ -118,21 +128,35 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem> {
       new vscode.RelativePattern(base, '.git/HEAD')
     );
 
-    const refresh = () => {
-      this.git.invalidateCache();
-      this.refresh();
-    };
-
     worktreesWatcher.onDidCreate(refresh);
     worktreesWatcher.onDidDelete(refresh);
     worktreesWatcher.onDidChange(refresh);
     headWatcher.onDidChange(refresh);
 
-    this.watchers = [worktreesWatcher, headWatcher];
+    this.watchers.push(worktreesWatcher, headWatcher);
 
-    return {
-      dispose: () => this.disposeWatchers(),
-    };
+    // 2. Watch individual worktrees for branch switches (HEAD changes)
+    for (const wt of worktrees) {
+      if (!wt.pathExists || wt.bare || wt.isCurrent) { continue; }
+
+      // If we have the dotGit path (which for worktrees is usually a file pointing to main repo),
+      // we watch that and also the HEAD file it points to if possible.
+      // But simpler: just watch the HEAD file in the worktree's .git (which is a file)
+      const wtGitPath = wt.dotGit || path.join(wt.path, '.git');
+      
+      // If .git is a file (common for worktrees), watching it might not catch internal HEAD changes.
+      // However, for worktrees, .git/HEAD is what changes when switching branches.
+      const wtBase = vscode.Uri.file(wt.path);
+      const wtHeadWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(wtBase, '.git/HEAD')
+      );
+      wtHeadWatcher.onDidChange(refresh);
+      this.watchers.push(wtHeadWatcher);
+    }
+  }
+
+  dispose(): void {
+    this.disposeWatchers();
   }
 
   private disposeWatchers(): void {
