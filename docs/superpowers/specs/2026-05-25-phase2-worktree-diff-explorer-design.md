@@ -24,7 +24,7 @@ Untracked files are included: they produce an empty-left ↔ full-file-right dif
 | `src/tree/WorktreeProvider.ts` | Add `WorktreeFileItem`; make `WorktreeItem` collapsible; union-type `getChildren` |
 | `src/content/YggContentProvider.ts` | **New** — `TextDocumentContentProvider` for `ygg-git:` scheme |
 | `src/commands/CommandRegistry.ts` | Add `ygg.openDiff` command handler |
-| `src/extension.ts` | Register content provider |
+| `src/extension.ts` | Register content provider; open welcome page on Activity Bar selection |
 | `package.json` | Add `ygg.openDiff` command; suppress from Command Palette |
 
 ---
@@ -244,6 +244,22 @@ context.subscriptions.push(
 );
 ```
 
+### Welcome page on Activity Bar selection
+
+When the user selects the Yggdrasil icon in the Activity Bar, the welcome page opens (or focuses if already open). This replaces the Phase 1 behaviour where clicking a `WorktreeItem` label triggered the welcome command directly.
+
+Use `treeView.onDidChangeVisibility`:
+
+```ts
+context.subscriptions.push(
+  treeView.onDidChangeVisibility(({ visible }) => {
+    if (visible) { showWelcome(context); }
+  })
+);
+```
+
+`showWelcome` already implements singleton panel behaviour (reuses the existing panel if open, creates it if not), so repeated Activity Bar clicks do not stack panels.
+
 No additional `activationEvents` needed — `onView:ygg.worktrees` already covers activation before any worktree item is expanded.
 
 ---
@@ -313,6 +329,12 @@ Add `"commandPalette"` suppression (prevents confusing palette entry with no-arg
 - Called with `WorktreeFileItem` → `vscode.diff` invoked with two `ygg-git:` URIs and `{ preview: true }`
 - Diff title format: `"<branch> — <relativePath> (HEAD ↔ Working Tree)"`
 - Called with no arguments → no `vscode.diff` call, no crash
+
+### Activity Bar welcome trigger (`extension.ts`)
+
+- `treeView.onDidChangeVisibility` fires with `visible: true` → `showWelcome` called
+- `treeView.onDidChangeVisibility` fires with `visible: false` → `showWelcome` not called
+- Repeated `visible: true` events → `showWelcome` called each time (singleton panel handles dedup)
 
 ---
 
