@@ -126,6 +126,11 @@ export function parsePorcelain(
 
     if (!wtPath) { continue; }
 
+    // Fallback for branch if not provided by git
+    if (!branch && !bare && !detached) {
+      branch = path.basename(wtPath) || 'unknown';
+    }
+
     if (bare)           { branch = '(bare)'; }
     else if (detached)  { branch = '(detached HEAD)'; }
 
@@ -148,6 +153,8 @@ export function parsePorcelain(
 
 export class GitService {
   private repoRootCache: string | undefined;
+  private cachedWorktrees: Worktree[] | undefined;
+  private branchChangesCache = new Map<string, { files: FileStatus[]; baseSha: string; baseRef: string }>();
   private readonly queue = new TaskQueue(4);
 
   constructor(
@@ -155,6 +162,18 @@ export class GitService {
     private readonly getBaseBranch: () => string | undefined = () => undefined,
     private readonly runRaw: typeof execFileNoThrow = execFileNoThrow,
   ) {}
+
+  public getCachedRepoRoot(): string | undefined {
+    return this.repoRootCache;
+  }
+
+  public getCachedWorktrees(): Worktree[] | undefined {
+    return this.cachedWorktrees;
+  }
+
+  public getCachedBranchChanges(worktreePath: string): { files: FileStatus[]; baseSha: string; baseRef: string } | undefined {
+    return this.branchChangesCache.get(worktreePath);
+  }
 
   private async run(cmd: string, args: string[], options?: import('../utils/execFileNoThrow').ExecOptions): Promise<import('../utils/execFileNoThrow').ExecResult> {
     return this.queue.run(() => this.runRaw(cmd, args, options));
@@ -207,11 +226,14 @@ export class GitService {
     });
 
     const enrichResults = await Promise.all(enrichTasks.map(t => t()));
-    return partial.map((wt, i) => ({
+    const freshWorktrees = partial.map((wt, i) => ({
       ...wt,
       isDirty: enrichResults[i].isDirty,
       dotGit: enrichResults[i].dotGit
     }));
+
+    this.cachedWorktrees = freshWorktrees;
+    return freshWorktrees;
   }
 
   async addWorktree(wtPath: string, branch: string, isNew: boolean): Promise<void> {
@@ -286,11 +308,14 @@ export class GitService {
     for (const f of staged)    { merged.set(f.relativePath, f); }
     for (const f of untracked) { merged.set(f.relativePath, f); }
 
-    return { files: Array.from(merged.values()), baseSha, baseRef };
+    const result = { files: Array.from(merged.values()), baseSha, baseRef };
+    this.branchChangesCache.set(worktreePath, result);
+    return result;
   }
 
   invalidateCache(): void {
     this.repoRootCache = undefined;
+    // We keep cachedWorktrees to allow SWR (Stale-While-Revalidate) rendering in the provider.
+    // The provider will return this stale cache instantly and then trigger a background refresh.
   }
 }
-

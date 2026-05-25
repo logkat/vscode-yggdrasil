@@ -63,7 +63,7 @@
         {
           "id": "ygg.worktrees.explorer",
           "name": "Git Worktrees (Explorer)",
-          "when": "config.ygg.showInExplorer != false"
+          "when": "config.ygg.showInExplorer != false && yggdrasil.isReady"
         }
       ]
     },
@@ -131,7 +131,10 @@
         }
       ],
       "commandPalette": [
-        { "command": "ygg.openDiff", "when": "false" }
+        {
+          "command": "ygg.openDiff",
+          "when": "false"
+        }
       ],
       "view/item/context": [
         {
@@ -177,5 +180,8 @@
     "@vscode/vsce": "^3.9.1",
     "mocha": "^10.3.0",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "agentic-flow": "^2.0.13"
   }
 }
