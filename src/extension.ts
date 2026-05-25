@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { GitService } from './git/GitService';
 import { WorktreeProvider } from './tree/WorktreeProvider';
+import { WorktreeDecorationProvider } from './tree/WorktreeDecorationProvider';
 import { CommandRegistry } from './commands/CommandRegistry';
 import { maybeShowWelcome, showWelcome } from './welcome/WelcomePage';
 import { YggContentProvider } from './content/YggContentProvider';
@@ -10,14 +11,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   channel.appendLine('Yggdrasil extension is activating...');
   channel.show(true);
   
-  console.log('Yggdrasil extension is activating...');
+  // Set initial loading state
+  vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', false);
+
   try {
     const git = new GitService(
       () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       () => vscode.workspace.getConfiguration('ygg').get<string>('baseBranch') || undefined,
     );
 
-    const provider = new WorktreeProvider(git);
+    const decorationProvider = new WorktreeDecorationProvider();
+    const provider = new WorktreeProvider(git, decorationProvider);
 
     const treeView = vscode.window.createTreeView('ygg.worktrees', {
       treeDataProvider: provider,
@@ -41,6 +45,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const welcomeCommand = vscode.commands.registerCommand('ygg.welcome', () => showWelcome(context));
 
     context.subscriptions.push(
+      vscode.window.registerFileDecorationProvider(decorationProvider),
       treeView.onDidChangeVisibility(({ visible }) => {
         if (visible) { showWelcome(context); }
       }),
@@ -53,13 +58,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const registeredCommands = await vscode.commands.getCommands(true);
     const yggdrasilCommands = registeredCommands.filter(c => c.startsWith('ygg.'));
-    console.log('Registered Yggdrasil commands:', yggdrasilCommands);
 
     maybeShowWelcome(context);
-    console.log('Yggdrasil extension activated successfully');
+
+    // Initial indexing to set the ready state
+    try {
+      await git.getRepoRoot();
+      await git.listWorktrees();
+      vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', true);
+    } catch (err) {
+      // Even on error, we set ready to true so the view can show the error state
+      vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', true);
+    }
+
     channel.appendLine('Yggdrasil extension activated successfully');
   } catch (err) {
-    console.error('Failed to activate Yggdrasil extension:', err);
     channel.appendLine(`Failed to activate Yggdrasil extension: ${err}`);
   }
 }
