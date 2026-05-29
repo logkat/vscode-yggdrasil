@@ -70,7 +70,7 @@ suite('WorktreeFileItem', () => {
 suite('WorktreeItem — collapsible state and resourceUri', () => {
   const makeWt = (overrides: Partial<Worktree> = {}): Worktree => ({
     path: '/repo/main', branch: 'main', head: 'abc', isCurrent: false,
-    isDirty: false, pathExists: true, locked: false, bare: false,
+    isMain: false, isDirty: false, pathExists: true, locked: false, bare: false,
     ...overrides,
   });
 
@@ -117,7 +117,7 @@ suite('WorktreeProvider.getChildren — branch dispatch', () => {
   test('returns nested tree when worktree has branch changes', async () => {
     const file: FileStatus = { relativePath: 'src/index.ts', status: 'M', isUntracked: false };
     const wt: Worktree = { path: '/repo/feat', branch: 'feat', head: 'abc',
-      isCurrent: false, isDirty: true, pathExists: true, locked: false, bare: false };
+      isCurrent: false, isMain: false, isDirty: true, pathExists: true, locked: false, bare: false };
     const git = {
       getCachedBranchChanges: () => undefined,
       getCachedWorktrees: () => undefined,
@@ -146,7 +146,7 @@ suite('WorktreeProvider.getChildren — branch dispatch', () => {
   test('returns flat list for root files', async () => {
     const file: FileStatus = { relativePath: 'readme.md', status: 'M', isUntracked: false };
     const wt: Worktree = { path: '/repo/feat', branch: 'feat', head: 'abc',
-      isCurrent: false, isDirty: true, pathExists: true, locked: false, bare: false };
+      isCurrent: false, isMain: false, isDirty: true, pathExists: true, locked: false, bare: false };
     const git = {
       getCachedBranchChanges: () => undefined,
       getCachedWorktrees: () => undefined,
@@ -164,7 +164,7 @@ suite('WorktreeProvider.getChildren — branch dispatch', () => {
 
   test('returns single "No changes on branch" TreeItem when branch is clean', async () => {
     const wt: Worktree = { path: '/repo/feat', branch: 'feat', head: 'abc',
-      isCurrent: false, isDirty: false, pathExists: true, locked: false, bare: false };
+      isCurrent: false, isMain: false, isDirty: false, pathExists: true, locked: false, bare: false };
     const git = {
       getCachedBranchChanges: () => undefined,
       getCachedWorktrees: () => undefined,
@@ -183,7 +183,7 @@ suite('WorktreeProvider.getChildren — branch dispatch', () => {
 
   test('returns error TreeItem when git.getWorktreeBranchChanges throws', async () => {
     const wt: Worktree = { path: '/repo/feat', branch: 'feat', head: 'abc',
-      isCurrent: false, isDirty: true, pathExists: true, locked: false, bare: false };
+      isCurrent: false, isMain: false, isDirty: true, pathExists: true, locked: false, bare: false };
     const git = {
       getCachedBranchChanges: () => undefined,
       getCachedWorktrees: () => undefined,
@@ -199,5 +199,72 @@ suite('WorktreeProvider.getChildren — branch dispatch', () => {
     assert.strictEqual(errorItem.collapsibleState, vscode.TreeItemCollapsibleState.None);
     assert.ok(errorItem.iconPath instanceof vscode.ThemeIcon);
     assert.strictEqual((errorItem.iconPath as vscode.ThemeIcon).id, 'error');
+  });
+});
+
+suite('Worktree Sorting', () => {
+  const makeWt = (branch: string, isMain: boolean): Worktree => ({
+    path: `/repo/${branch}`,
+    branch,
+    head: 'abc',
+    isCurrent: false,
+    isMain,
+    isDirty: false,
+    pathExists: true,
+    locked: false,
+    bare: false
+  });
+
+  test('sorts main and develop branches first', async () => {
+    const worktrees: Worktree[] = [
+      makeWt('feature-b', false),
+      makeWt('develop', false),
+      makeWt('main', false),
+      makeWt('feature-a', true),
+    ];
+
+    const git = {
+      getCachedWorktrees: () => worktrees,
+      getCachedRepoRoot: () => '/repo',
+      getWorkspaceRoot: () => '/repo',
+      listWorktrees: async () => worktrees,
+      getRepoRoot: async () => '/repo'
+    } as any;
+
+    const provider = new WorktreeProvider(git);
+    const children = await provider.getChildren() as WorktreeItem[];
+
+    // Expected order:
+    // 1. main
+    // 2. develop
+    // 3. feature-a (isMain)
+    // 4. feature-b (alphabetical)
+
+    assert.strictEqual(children[0].worktree.branch, 'main');
+    assert.strictEqual(children[1].worktree.branch, 'develop');
+    assert.strictEqual(children[2].worktree.branch, 'feature-a');
+    assert.strictEqual(children[2].worktree.isMain, true);
+    assert.strictEqual(children[3].worktree.branch, 'feature-b');
+  });
+
+  test('sorts master first if main/develop do not exist', async () => {
+    const worktrees: Worktree[] = [
+      makeWt('feature-x', true),
+      makeWt('master', false),
+    ];
+
+    const git = {
+      getCachedWorktrees: () => worktrees,
+      getCachedRepoRoot: () => '/repo',
+      getWorkspaceRoot: () => '/repo',
+      listWorktrees: async () => worktrees,
+      getRepoRoot: async () => '/repo'
+    } as any;
+
+    const provider = new WorktreeProvider(git);
+    const children = await provider.getChildren() as WorktreeItem[];
+
+    assert.strictEqual(children[0].worktree.branch, 'master');
+    assert.strictEqual(children[1].worktree.branch, 'feature-x');
   });
 });
