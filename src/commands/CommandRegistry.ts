@@ -8,6 +8,7 @@ const STATE_KEY = 'ygg.switchMode';
 
 export class CommandRegistry {
   private statusBarItem: vscode.StatusBarItem | undefined;
+  private worktreeStatusBarItem: vscode.StatusBarItem | undefined;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -19,9 +20,25 @@ export class CommandRegistry {
     const disposables: vscode.Disposable[] = [];
     this.restoreStatusBar();
 
+    if (this.statusBarItem) {
+      disposables.push(this.statusBarItem);
+    }
+
+    // Create the status bar item if it doesn't exist
+    if (!this.worktreeStatusBarItem) {
+      this.worktreeStatusBarItem = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Left,
+        100 // Priority
+      );
+      this.worktreeStatusBarItem.command = 'ygg.selectAndSwitch';
+      this.worktreeStatusBarItem.tooltip = 'Switch Worktree';
+      disposables.push(this.worktreeStatusBarItem);
+    }
+
     disposables.push(vscode.commands.registerCommand('ygg.refresh', () => {
       this.git.invalidateCache();
       this.provider.refresh();
+      this.updateWorktreeStatusBar();
     }));
 
     disposables.push(vscode.commands.registerCommand('ygg.switch', (item?: WorktreeItem) =>
@@ -49,12 +66,12 @@ export class CommandRegistry {
     ));
 
     disposables.push(vscode.commands.registerCommand('ygg.copyPath', (item?: WorktreeItem) => {
-      if (!item) { return; }
+      if (!item || item.worktree.isVirtual) { return; }
       vscode.env.clipboard.writeText(item.worktree.path);
     }));
 
     disposables.push(vscode.commands.registerCommand('ygg.revealInOs', (item?: WorktreeItem) => {
-      if (!item) { return; }
+      if (!item || item.worktree.isVirtual) { return; }
       vscode.commands.executeCommand(
         'revealFileInOS',
         vscode.Uri.file(item.worktree.path)
@@ -71,6 +88,18 @@ export class CommandRegistry {
 
   private async switchWorktree(item?: WorktreeItem): Promise<void> {
     if (!item) { return; }
+
+    if (item.worktree.isVirtual) {
+      const resp = await vscode.window.showInformationMessage(
+        `Branch '${item.worktree.branch}' is not checked out.`,
+        'Create Worktree...'
+      );
+      if (resp === 'Create Worktree...') {
+        this.addWorktree(item.worktree.branch);
+      }
+      return;
+    }
+
     const stored = this.context.globalState.get<SwitchMode>(STATE_KEY);
     let mode: SwitchMode;
     if (stored) {
@@ -89,7 +118,7 @@ export class CommandRegistry {
 
   private async selectAndSwitch(): Promise<void> {
     const all = await this.git.listWorktrees();
-    const candidates = all.filter(wt => !wt.isCurrent && wt.pathExists);
+    const candidates = all.filter(wt => !wt.isCurrent && wt.pathExists && !wt.isVirtual);
     if (candidates.length === 0) {
       vscode.window.showInformationMessage('No other worktrees to switch to.');
       return;
@@ -162,18 +191,19 @@ export class CommandRegistry {
     return { mode: picked.mode, remember: picked.remember };
   }
 
-  private async addWorktree(): Promise<void> {
-    const kind = await vscode.window.showQuickPick(
+  private async addWorktree(prefillBranch?: string): Promise<void> {
+    const kind = prefillBranch ? 'Existing branch' : await vscode.window.showQuickPick(
       ['Existing branch', 'New branch'],
       { placeHolder: 'Choose branch type' }
     );
     if (!kind) { return; }
 
     const isNew = kind === 'New branch';
-    const branch = await vscode.window.showInputBox({ prompt: 'Branch name' });
+    const branch = prefillBranch || await vscode.window.showInputBox({ prompt: 'Branch name' });
     if (!branch) { return; }
 
     const safeBranch = branch.replace(/\//g, '-');
+
     const locations = [
       { label: 'Parent directory', detail: `../${safeBranch}`, value: `../${safeBranch}` },
       { label: 'Nested (.worktrees)', detail: `.worktrees/${safeBranch}`, value: `.worktrees/${safeBranch}` },
@@ -215,40 +245,55 @@ export class CommandRegistry {
   }
 
   private async setBaseBranch(item?: WorktreeItem): Promise<void> {
-    if (!item) { return; }
-    const wtPath = item.worktree.path;
-    const currentBase = this.context.workspaceState.get<string>(`ygg.baseBranch:${wtPath}`);
+    if (item) {
+      const wtPath = item.worktree.path;
+      const currentBase = this.context.workspaceState.get<string>(`ygg.baseBranch:${wtPath}`);
 
-    const options: (vscode.QuickPickItem & { branch?: string, clear?: boolean })[] = [
-      { label: '$(close) Clear (use default)', description: 'Reset to global setting or upstream', clear: true },
-      { label: '', kind: vscode.QuickPickItemKind.Separator },
-      { label: '$(edit) Custom...', description: 'Enter a branch name manually' }
-    ];
+      const options: (vscode.QuickPickItem & { branch?: string, clear?: boolean })[] = [
+        { label: '$(close) Clear (use default)', description: 'Reset to global setting or upstream', clear: true },
+        { label: '', kind: vscode.QuickPickItemKind.Separator },
+        { label: '$(edit) Custom...', description: 'Enter a branch name manually' }
+      ];
 
-    const picked = await vscode.window.showQuickPick(options, {
-      title: `Set Base Branch for ${item.worktree.branch}`,
-      placeHolder: currentBase ? `Current: ${currentBase}` : 'Enter base branch name'
-    });
-
-    if (!picked) { return; }
-
-    let newBase: string | undefined;
-    if (picked.clear) {
-      newBase = undefined;
-    } else {
-      newBase = await vscode.window.showInputBox({
-        prompt: `Enter base branch for ${item.worktree.branch}`,
-        value: currentBase || 'main'
+      const picked = await vscode.window.showQuickPick(options, {
+        title: `Set Base Branch for ${item.worktree.branch}`,
+        placeHolder: currentBase ? `Current: ${currentBase}` : 'Enter base branch name'
       });
-      if (!newBase) { return; }
-    }
 
-    await this.context.workspaceState.update(`ygg.baseBranch:${wtPath}`, newBase);
+      if (!picked) { return; }
+
+      let newBase: string | undefined;
+      if (picked.clear) {
+        newBase = undefined;
+      } else {
+        newBase = await vscode.window.showInputBox({
+          prompt: `Enter base branch for ${item.worktree.branch}`,
+          value: currentBase || 'main'
+        });
+        if (!newBase) { return; }
+      }
+
+      await this.context.workspaceState.update(`ygg.baseBranch:${wtPath}`, newBase);
+    } else {
+      // Global configuration
+      const config = vscode.workspace.getConfiguration('ygg');
+      const currentGlobal = config.get<string>('baseBranch');
+
+      const newBase = await vscode.window.showInputBox({
+        title: 'Set Global Default Branch',
+        prompt: 'Enter the branch name to use as default for this repository',
+        value: currentGlobal || 'main',
+        placeHolder: 'e.g. main, develop, master'
+      });
+
+      if (newBase === undefined) { return; }
+      await config.update('baseBranch', newBase, vscode.ConfigurationTarget.Workspace);
+    }
     this.provider.refresh();
   }
 
   private async removeWorktree(item?: WorktreeItem): Promise<void> {
-    if (!item) { return; }
+    if (!item || item.worktree.isVirtual) { return; }
     const answer = await vscode.window.showWarningMessage(
       `Remove worktree '${item.worktree.branch}'?`,
       { modal: true },
@@ -308,6 +353,28 @@ export class CommandRegistry {
     this.statusBarItem = undefined;
     if (!had) {
       vscode.window.showInformationMessage('No remembered switch mode to clear.');
+    }
+  }
+
+  public async updateWorktreeStatusBar(): Promise<void> {
+    try {
+      // Use cached worktrees if available, otherwise fetch
+      const worktrees = this.git.getCachedWorktrees() ?? await this.git.listWorktrees();
+      const current = worktrees.find(wt => wt.isCurrent);
+      
+      if (!this.worktreeStatusBarItem) {
+        // Should already be created in register(), but safety check
+        return;
+      }
+
+      if (current) {
+        this.worktreeStatusBarItem.text = `$(file-submodule) ${current.branch}`;
+        this.worktreeStatusBarItem.show();
+      } else {
+        this.worktreeStatusBarItem.hide();
+      }
+    } catch {
+      this.worktreeStatusBarItem?.hide();
     }
   }
 }
