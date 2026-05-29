@@ -2,10 +2,15 @@ import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 
 const WELCOMED_KEY = 'ygg.welcomed';
+let shownInThisSession = false;
 
-export function maybeShowWelcome(context: vscode.ExtensionContext): void {
-  if (!context.globalState.get<boolean>(WELCOMED_KEY)) {
-    context.globalState.update(WELCOMED_KEY, true);
+export async function maybeShowWelcome(context: vscode.ExtensionContext): Promise<void> {
+  if (shownInThisSession) { return; }
+  
+  const alreadyWelcomed = context.globalState.get<boolean>(WELCOMED_KEY);
+  if (!alreadyWelcomed) {
+    shownInThisSession = true;
+    await context.globalState.update(WELCOMED_KEY, true);
     showWelcome(context);
   }
 }
@@ -14,7 +19,6 @@ let activePanel: vscode.WebviewPanel | undefined;
 
 export function showWelcome(context: vscode.ExtensionContext): void {
   if (activePanel) {
-    activePanel.reveal();
     return;
   }
   activePanel = vscode.window.createWebviewPanel(

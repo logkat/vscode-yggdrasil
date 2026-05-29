@@ -155,12 +155,12 @@
       "view/item/context": [
         {
           "command": "ygg.switch",
-          "when": "viewItem == worktreeItem",
+          "when": "viewItem == worktreeItem || viewItem == worktreeItemVirtual",
           "group": "inline"
         },
         {
           "command": "ygg.switch",
-          "when": "viewItem == worktreeItem",
+          "when": "viewItem == worktreeItem || viewItem == worktreeItemVirtual",
           "group": "1_actions"
         },
         {

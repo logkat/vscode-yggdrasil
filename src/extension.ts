@@ -7,10 +7,6 @@ import { maybeShowWelcome, showWelcome } from './welcome/WelcomePage';
 import { YggContentProvider } from './content/YggContentProvider';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  const channel = vscode.window.createOutputChannel('Yggdrasil Diagnostics');
-  channel.appendLine('Yggdrasil extension is activating...');
-  channel.show(true);
-  
   // Set initial loading state
   vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', false);
 
@@ -52,34 +48,29 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     context.subscriptions.push(
       vscode.window.registerFileDecorationProvider(decorationProvider),
-      treeView.onDidChangeVisibility(({ visible }) => {
-        if (visible) { showWelcome(context); }
-      }),
-      explorerView.onDidChangeVisibility(({ visible }) => {
-        if (visible) { showWelcome(context); }
-      })
+      treeView,
+      explorerView,
+      welcomeCommand,
+      contentProviderDisposable,
+      ...commands,
+      provider
     );
 
-    context.subscriptions.push(treeView, explorerView, welcomeCommand, contentProviderDisposable, ...commands, provider);
-
-    const registeredCommands = await vscode.commands.getCommands(true);
-    const yggdrasilCommands = registeredCommands.filter(c => c.startsWith('ygg.'));
-
-    maybeShowWelcome(context);
+    await maybeShowWelcome(context);
 
     // Initial indexing to set the ready state
     try {
       await git.getRepoRoot();
       await git.listWorktrees();
-      vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', true);
+      // Ensure status bar is updated with the current worktree name
+      await registry.updateWorktreeStatusBar();
     } catch (err) {
-      // Even on error, we set ready to true so the view can show the error state
-      vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', true);
+      // Expected if not a git repo or no workspace open
     }
-
-    channel.appendLine('Yggdrasil extension activated successfully');
   } catch (err) {
-    channel.appendLine(`Failed to activate Yggdrasil extension: ${err}`);
+    // Silent failure for activation - extension will just not be ready
+  } finally {
+    vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', true);
   }
 }
 
