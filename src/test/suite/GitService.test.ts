@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { parsePorcelain, parseStatusLine } from '../../git/GitService';
+import { parsePorcelain, parseStatusLine, GitService } from '../../git/GitService';
 
 // Porcelain samples verified against git 2.50.1
 const NORMAL = `worktree /repo/main
@@ -163,4 +163,79 @@ suite('parseStatusLine', () => {
     assert.deepStrictEqual(r, { relativePath: 'src/café.ts', status: 'M', isUntracked: false });
   });
 });
+
+suite('GitService — Virtual Branches', () => {
+  test('listWorktrees adds virtual entry for default branch when not checked out', async () => {
+    const worktreeList = `worktree /repo/feature
+HEAD abc123def456abc123def456abc123def456abc1
+branch refs/heads/feature/x
+`;
+
+    const git = new GitService(
+      () => '/repo/feature',
+      () => 'main', // Configured default branch
+      async (_cmd, args, _options) => {
+        if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
+          return { status: 0, stdout: '/repo/feature', stderr: '' };
+        }
+        if (args[0] === 'worktree' && args[1] === 'list') {
+          return { status: 0, stdout: worktreeList, stderr: '' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === 'main') {
+          return { status: 0, stdout: 'base_sha_for_main\n', stderr: '' };
+        }
+        // Mocking enrichment calls
+        if (args[0] === 'status') { return { status: 0, stdout: '', stderr: '' }; }
+        if (args[0] === 'rev-parse' && args[1] === '--git-dir') { return { status: 0, stdout: '.git', stderr: '' }; }
+        if (args[0] === 'rev-list') { return { status: 0, stdout: '0', stderr: '' }; }
+        
+        return { status: 0, stdout: '', stderr: '' };
+      }
+    );
+
+    const worktrees = await git.listWorktrees();
+
+    // Should have 2 worktrees: feature/x and virtual main
+    assert.strictEqual(worktrees.length, 2);
+    
+    const virtual = worktrees.find(wt => wt.isVirtual);
+    assert.ok(virtual, 'Should have a virtual worktree');
+    assert.strictEqual(virtual?.branch, 'main');
+    assert.strictEqual(virtual?.isVirtual, true);
+    assert.strictEqual(virtual?.path, 'VIRTUAL:main');
+    assert.strictEqual(virtual?.pathExists, false);
+  });
+
+  test('listWorktrees does NOT add virtual entry if default branch is already checked out', async () => {
+    const worktreeList = `worktree /repo/main
+HEAD abc123def456abc123def456abc123def456abc1
+branch refs/heads/main
+`;
+
+    const git = new GitService(
+      () => '/repo/main',
+      () => 'main',
+      async (_cmd, args, _options) => {
+        if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
+          return { status: 0, stdout: '/repo/main', stderr: '' };
+        }
+        if (args[0] === 'worktree' && args[1] === 'list') {
+          return { status: 0, stdout: worktreeList, stderr: '' };
+        }
+        if (args[0] === 'status') { return { status: 0, stdout: '', stderr: '' }; }
+        if (args[0] === 'rev-parse' && args[1] === '--git-dir') { return { status: 0, stdout: '.git', stderr: '' }; }
+        if (args[0] === 'rev-list') { return { status: 0, stdout: '0', stderr: '' }; }
+        return { status: 0, stdout: '', stderr: '' };
+      }
+    );
+
+    const worktrees = await git.listWorktrees();
+
+    // Should have only 1 worktree: main (real)
+    assert.strictEqual(worktrees.length, 1);
+    assert.strictEqual(worktrees[0].branch, 'main');
+    assert.strictEqual(worktrees[0].isVirtual || false, false);
+  });
+});
+
 

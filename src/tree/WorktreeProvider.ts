@@ -6,7 +6,8 @@ import { WorktreeDecorationProvider } from './WorktreeDecorationProvider';
 export type WorktreeContextValue =
   | 'worktreeItem'
   | 'worktreeItemCurrent'
-  | 'worktreeItemMissing';
+  | 'worktreeItemMissing'
+  | 'worktreeItemVirtual';
 
 export class WorktreeItem extends vscode.TreeItem {
   constructor(
@@ -16,12 +17,12 @@ export class WorktreeItem extends vscode.TreeItem {
   ) {
     super(
       worktree.branch,
-      (worktree.pathExists && !worktree.bare)
+      (worktree.pathExists && !worktree.bare && !worktree.isVirtual)
         ? vscode.TreeItemCollapsibleState.Collapsed
         : vscode.TreeItemCollapsibleState.None,
     );
 
-    this.description = path.relative(repoRoot, worktree.path) || '.';
+    this.description = worktree.isVirtual ? '(not checked out)' : (path.relative(repoRoot, worktree.path) || '.');
     this.contextValue = WorktreeItem.contextValueFor(worktree);
     this.iconPath = WorktreeItem.iconFor(worktree);
     this.tooltip = this.getRichTooltip();
@@ -31,6 +32,15 @@ export class WorktreeItem extends vscode.TreeItem {
   private getRichTooltip(): vscode.MarkdownString {
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
+
+    if (this.worktree.isVirtual) {
+      md.appendMarkdown(`### Virtual Branch: ${this.worktree.branch}\n\n`);
+      md.appendMarkdown(`---\n\n`);
+      md.appendMarkdown(`This branch exists in the repository but is **not checked out** in any worktree.\n\n`);
+      md.appendMarkdown(`Use the switch command to create a new worktree for this branch.\n`);
+      return md;
+    }
+
     md.appendMarkdown(`### Worktree: ${this.worktree.branch}\n\n`);
     md.appendMarkdown(`---\n\n`);
     md.appendMarkdown(`- **Path:** \`${this.worktree.path}\`\n`);
@@ -53,12 +63,16 @@ export class WorktreeItem extends vscode.TreeItem {
   }
 
   private static contextValueFor(wt: Worktree): WorktreeContextValue {
+    if (wt.isVirtual)   { return 'worktreeItemVirtual'; }
     if (!wt.pathExists) { return 'worktreeItemMissing'; }
     if (wt.isCurrent)   { return 'worktreeItemCurrent'; }
     return 'worktreeItem';
   }
 
   public static iconFor(wt: Worktree): vscode.ThemeIcon {
+    if (wt.isVirtual) {
+      return new vscode.ThemeIcon('repo', new vscode.ThemeColor('disabledForeground'));
+    }
     if (!wt.pathExists) {
       return new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground'));
     }
@@ -201,7 +215,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem | 
         this.decorationProvider?.refresh();
       }
     } catch (err) {
-      console.error('Background refresh failed:', err);
+      console.log('Background refresh failed:', err);
     } finally {
       this.isRefreshing = false;
     }
@@ -224,7 +238,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem | 
         this._onDidChangeTreeData.fire(element);
       }
     } catch (err) {
-      console.error(`Node background refresh failed for ${element.worktree.branch}:`, err);
+      console.log(`Node background refresh failed for ${element.worktree.branch}:`, err);
     } finally {
       this.refreshingNodes.delete(key);
     }
@@ -290,7 +304,8 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem | 
       
       if (this.rootCache) { return this.rootCache; }
 
-      this.rootCache = cachedWorktrees.map((wt) => {
+      const sortedWorktrees = this.sortWorktrees(cachedWorktrees);
+      this.rootCache = sortedWorktrees.map((wt) => {
         return this.getOrCreateWorktreeItem(wt, cachedRepoRoot);
       });
       return this.rootCache;
@@ -298,6 +313,34 @@ export class WorktreeProvider implements vscode.TreeDataProvider<WorktreeItem | 
 
     // Async path (cache miss)
     return this.loadRootNodes();
+  }
+
+  private sortWorktrees(wts: Worktree[]): Worktree[] {
+    const defaultBranches = ['main', 'develop', 'master'];
+    return [...wts].sort((a, b) => {
+      // 1. Virtual items ALWAYS first
+      if (a.isVirtual && !b.isVirtual) { return -1; }
+      if (!a.isVirtual && b.isVirtual) { return 1; }
+
+      const aIsDefault = defaultBranches.includes(a.branch);
+      const bIsDefault = defaultBranches.includes(b.branch);
+
+      if (aIsDefault && !bIsDefault) { return -1; }
+      if (!aIsDefault && bIsDefault) { return 1; }
+
+      if (aIsDefault && bIsDefault) {
+        const aIndex = defaultBranches.indexOf(a.branch);
+        const bIndex = defaultBranches.indexOf(b.branch);
+        if (aIndex !== bIndex) { return aIndex - bIndex; }
+      }
+
+      // The main worktree should always be first (among non-virtual default branches)
+      if (a.isMain && !b.isMain) { return -1; }
+      if (!a.isMain && b.isMain) { return 1; }
+
+      // Otherwise alphabetical by branch
+      return a.branch.localeCompare(b.branch);
+    });
   }
 
   private async loadRootNodes(): Promise<(WorktreeItem | vscode.TreeItem)[]> {
@@ -309,7 +352,8 @@ if (this.git.getWorkspaceRoot()) {
   this.setupWatchers(repoRoot, worktrees);
 }
 
-this.rootCache = worktrees.map((wt) => {
+const sortedWorktrees = this.sortWorktrees(worktrees);
+this.rootCache = sortedWorktrees.map((wt) => {
   return this.getOrCreateWorktreeItem(wt, repoRoot);
 });
 return this.rootCache;
@@ -449,6 +493,7 @@ return this.rootCache;
       branch: message,
       head: '',
       isCurrent: false,
+      isMain: false,
       isDirty: false,
       pathExists: true,
       locked: false,

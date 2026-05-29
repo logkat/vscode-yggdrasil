@@ -8,6 +8,7 @@ export interface Worktree {
   branch: string;
   head: string;
   isCurrent: boolean;
+  isMain: boolean;
   isDirty: boolean;
   pathExists: boolean;
   locked: boolean;
@@ -15,6 +16,7 @@ export interface Worktree {
   dotGit?: string;
   baseRef?: string;
   aheadCount?: number;
+  isVirtual?: boolean;
 }
 
 export interface FileStatus {
@@ -104,7 +106,8 @@ export function parsePorcelain(
   const blocks = output.trim().split(/\n\n+/);
   const worktrees: Omit<Worktree, 'isDirty'>[] = [];
 
-  for (const block of blocks) {
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
     if (!block.trim()) { continue; }
     const lines = block.split('\n');
     let wtPath = '';
@@ -144,6 +147,7 @@ export function parsePorcelain(
       branch,
       head,
       isCurrent: resolvedWt === currentRealPath,
+      isMain: i === 0, // First entry in 'git worktree list' is the main worktree
       pathExists: fs.existsSync(wtPath),
       locked,
       bare,
@@ -244,8 +248,51 @@ export class GitService {
       dotGit: enrichResults[i].dotGit
     }));
 
+    // Add virtual default branch if not already present in worktree list
+    const defaultBranch = await this.getDefaultBranch();
+    const hasDefault = freshWorktrees.some(wt => wt.branch === defaultBranch);
+    if (!hasDefault) {
+      const headRes = await this.run('git', ['rev-parse', defaultBranch], { cwd: repoRoot });
+      if (headRes.status === 0) {
+        freshWorktrees.push({
+          path: `VIRTUAL:${defaultBranch}`,
+          branch: defaultBranch,
+          head: headRes.stdout.trim(),
+          isCurrent: false,
+          isMain: false,
+          isDirty: false,
+          pathExists: false, // Virtual items don't have a path
+          locked: false,
+          bare: false,
+          isVirtual: true,
+          aheadCount: undefined,
+          dotGit: undefined,
+        });
+      }
+    }
+
     this.cachedWorktrees = freshWorktrees;
     return freshWorktrees;
+  }
+
+  public async getDefaultBranch(): Promise<string> {
+    const repoRoot = await this.getRepoRoot();
+
+    // 1. Try configured base branch
+    const configured = this.getBaseBranch();
+    if (configured) { return configured; }
+
+    // 2. Try origin/HEAD
+    const res = await this.run('git', ['rev-parse', '--abbrev-ref', 'origin/HEAD'], { cwd: repoRoot });
+    if (res.status === 0) {
+      const branch = res.stdout.trim();
+      return branch.startsWith('origin/') ? branch.slice('origin/'.length) : branch;
+    }
+
+    // 3. Fallback to common defaults
+    const mainExists = await this.run('git', ['rev-parse', '--verify', 'main'], { cwd: repoRoot });
+    if (mainExists.status === 0) { return 'main'; }
+    return 'master';
   }
 
   async addWorktree(wtPath: string, branch: string, isNew: boolean): Promise<void> {
