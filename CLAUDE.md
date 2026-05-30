@@ -1,3 +1,35 @@
+# yggdrasil — VS Code Git Worktree Extension
+
+Sidebar tree view for exploring and switching git worktrees.
+Entry point: `src/extension.ts` → registers GitService, WorktreeProvider, CommandRegistry.
+
+## Commands
+
+```bash
+npm run compile          # TypeScript → out/
+npm run watch            # compile in watch mode
+npm test                 # run extension tests (node ./out/test/runTests.js)
+npm run package          # build .vsix for distribution (vsce package)
+```
+
+## Architecture
+
+| File | Role |
+|------|------|
+| `src/git/GitService.ts` | all git operations (worktree list, add, remove, prune) |
+| `src/tree/WorktreeProvider.ts` | VS Code TreeDataProvider — builds the sidebar tree |
+| `src/tree/WorktreeDecorationProvider.ts` | file decorations (dirty/ahead indicators) |
+| `src/commands/CommandRegistry.ts` | registers all `ygg.*` VS Code commands |
+
+## Development workflow
+
+1. `npm run watch` — keep a compile watcher running
+2. Press **F5** in VS Code to launch Extension Development Host
+3. The `.vscode/launch.json` and `.vscode/tasks.json` wire this up automatically
+4. Tests: `npm test` (requires compiled output — run compile first)
+
+---
+
 # Project Instructions (Claude Code)
 
 This project uses the **agentic-stack** portable brain. All memory, skills,
