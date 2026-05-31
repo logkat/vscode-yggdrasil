@@ -43,10 +43,13 @@ export class YggContentProvider implements vscode.TextDocumentContentProvider {
 
     if (side === 'WORK') {
       try {
-        const fullPath = path.join(wt, file);
+        const fullPath = path.resolve(wt, file);
         const resolvedWt = path.resolve(wt);
-        // Security: Ensure path does not escape the worktree root
-        if (!path.resolve(fullPath).startsWith(resolvedWt + path.sep)) {
+        // Security: Ensure the resolved path is inside the worktree root.
+        // path.relative returns '' for equal paths and '..'-prefixed strings
+        // for paths outside the root — both should be rejected.
+        const rel = path.relative(resolvedWt, fullPath);
+        if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) {
           return '';
         }
         return await fs.promises.readFile(fullPath, 'utf8');
