@@ -93,6 +93,18 @@ suite('YggContentProvider', () => {
       assert.strictEqual(content, '');
     });
 
+    test('WORK side: returns "" for absolute file path (path injection guard)', async () => {
+      const run = async () => ({ status: 0, stdout: '', stderr: '' });
+      const provider = new YggContentProvider(run as any);
+      const uri = vscode.Uri.from({
+        scheme: 'ygg-git',
+        path: '/diff',
+        query: new URLSearchParams({ side: 'WORK', wt: '/repo', file: '/etc/passwd' }).toString(),
+      });
+      const content = await provider.provideTextDocumentContent(uri);
+      assert.strictEqual(content, '');
+    });
+
     test('unknown side returns ""', async () => {
       const run = async () => ({ status: 0, stdout: '', stderr: '' });
       const provider = new YggContentProvider(run as any);
