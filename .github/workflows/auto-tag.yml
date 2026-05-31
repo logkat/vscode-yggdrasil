@@ -1,8 +1,13 @@
 name: Auto Tag
 
 # Runs on every push to main. If the version in package.json doesn't have a
-# matching git tag yet, this workflow creates one — which in turn triggers the
-# Publish workflow.
+# matching git tag yet, this workflow creates one and then explicitly dispatches
+# the Publish workflow at that tag.
+#
+# Why not rely on the tag push to trigger Publish directly?
+# GitHub does not fire workflow events for pushes made by GITHUB_TOKEN to
+# prevent infinite loops. workflow_dispatch via the API is explicitly exempted
+# from this restriction, so we dispatch Publish ourselves after tagging.
 on:
   push:
     branches:
@@ -10,6 +15,7 @@ on:
 
 permissions:
   contents: write   # needed to push tags
+  actions: write    # needed to dispatch the publish workflow
 
 jobs:
   tag:
@@ -40,3 +46,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "${{ steps.version.outputs.value }}"
           git push origin "${{ steps.version.outputs.value }}"
+
+      - name: Dispatch publish workflow
+        if: steps.tag_exists.outputs.exists == 'false'
+        run: gh workflow run publish.yml --ref "${{ steps.version.outputs.value }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
