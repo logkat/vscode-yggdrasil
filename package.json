@@ -1,213 +1,22 @@
 {
-  "name": "git-yggdrasil",
-  "displayName": "Yggdrasil Git Worktrees",
-  "description": "Explore and switch git worktrees from the VS Code sidebar",
-  "version": "0.1.2",
-  "publisher": "LogKat",
+  "name": "yggdrasil",
+  "displayName": "Yggdrasil — Git Worktree Explorer (Deprecated)",
+  "description": "⚠️ Deprecated. Please install LogKat.git-yggdrasil instead.",
+  "version": "1.0.0",
+  "publisher": "logKat-yggdrasil",
   "license": "MIT",
-  "engines": {
-    "vscode": "^1.74.0"
-  },
-  "categories": [
-    "Other"
-  ],
-  "activationEvents": [
-    "onView:ygg.worktrees",
-    "onView:ygg.worktrees.explorer",
-    "onCommand:ygg.selectAndSwitch",
-    "onCommand:ygg.welcome",
-    "onStartupFinished"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/logkat/vscode-yggdrasil"
-  },
-  "capabilities": {
-    "untrustedWorkspaces": {
-      "supported": true
-    }
-  },
+  "engines": { "vscode": "^1.74.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
-  "contributes": {
-    "configuration": {
-      "title": "Yggdrasil",
-      "properties": {
-        "ygg.showInExplorer": {
-          "type": "boolean",
-          "default": true,
-          "description": "Show the Git Worktree Explorer in the explorer sidebar."
-        },
-        "ygg.baseBranch": {
-          "type": "string",
-          "default": "",
-          "description": "Branch to compare worktrees against. Leave empty to auto-detect the tracking branch (falls back to 'main')."
-        }
-      }
-    },
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "yggdrasil-view",
-          "title": "Git Worktree Explorer",
-          "icon": "./images/worktree.svg"
-        }
-      ]
-    },
-    "views": {
-      "yggdrasil-view": [
-        {
-          "id": "ygg.worktrees",
-          "name": "Git Worktrees"
-        }
-      ],
-      "explorer": [
-        {
-          "id": "ygg.worktrees.explorer",
-          "name": "Git Worktrees (Explorer)",
-          "when": "config.ygg.showInExplorer != false && yggdrasil.isReady"
-        }
-      ]
-    },
-    "commands": [
-      {
-        "command": "ygg.refresh",
-        "title": "Refresh",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "ygg.switch",
-        "title": "Switch Worktree",
-        "icon": "$(arrow-swap)"
-      },
-      {
-        "command": "ygg.selectAndSwitch",
-        "title": "Switch Worktree...",
-        "category": "ygg"
-      },
-      {
-        "command": "ygg.clearSwitchMode",
-        "title": "Clear Remembered Switch Mode",
-        "category": "ygg"
-      },
-      {
-        "command": "ygg.welcome",
-        "title": "Welcome",
-        "category": "ygg"
-      },
-      {
-        "command": "ygg.add",
-        "title": "Add Worktree",
-        "category": "ygg",
-        "icon": "$(add)"
-      },
-      {
-        "command": "ygg.prune",
-        "title": "Prune Missing Worktrees",
-        "category": "ygg",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "ygg.setBaseBranch",
-        "title": "Set Base Branch...",
-        "category": "ygg"
-      },
-      {
-        "command": "ygg.remove",
-        "title": "Remove Worktree",
-        "icon": "$(trash)"
-      },
-      {
-        "command": "ygg.copyPath",
-        "title": "Copy Path"
-      },
-      {
-        "command": "ygg.revealInOs",
-        "title": "Reveal in Finder / Explorer"
-      },
-      {
-        "command": "ygg.openDiff",
-        "title": "Open Diff"
-      }
-    ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "ygg.refresh",
-          "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
-          "group": "navigation"
-        },
-        {
-          "command": "ygg.add",
-          "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
-          "group": "navigation"
-        },
-        {
-          "command": "ygg.prune",
-          "when": "view == ygg.worktrees || view == ygg.worktrees.explorer",
-          "group": "navigation"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "ygg.openDiff",
-          "when": "false"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "ygg.switch",
-          "when": "viewItem == worktreeItem || viewItem == worktreeItemVirtual",
-          "group": "inline"
-        },
-        {
-          "command": "ygg.switch",
-          "when": "viewItem == worktreeItem || viewItem == worktreeItemVirtual",
-          "group": "1_actions"
-        },
-        {
-          "command": "ygg.prune",
-          "when": "viewItem == worktreeItemMissing",
-          "group": "1_actions"
-        },
-        {
-          "command": "ygg.setBaseBranch",
-          "when": "viewItem == worktreeItem || viewItem == worktreeItemCurrent",
-          "group": "2_actions"
-        },
-        {
-          "command": "ygg.remove",
-          "when": "viewItem == worktreeItem",
-          "group": "2_actions"
-        },
-        {
-          "command": "ygg.copyPath",
-          "when": "viewItem =~ /^worktreeItem/",
-          "group": "3_actions"
-        },
-        {
-          "command": "ygg.revealInOs",
-          "when": "viewItem =~ /^worktreeItem/",
-          "group": "3_actions"
-        }
-      ]
-    }
-  },
   "scripts": {
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "test": "node ./out/test/runTests.js",
-    "vscode:prepublish": "npm run compile",
-    "package": "vsce package",
-    "publish:local": "bash scripts/publish.sh"
+    "vscode:prepublish": "npm run compile"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.5",
     "@types/vscode": "^1.74.0",
-    "@vscode/test-electron": "^2.3.8",
     "@vscode/vsce": "^3.9.1",
-    "mocha": "^10.3.0",
-    "ovsx": "^0.10.6",
     "typescript": "^5.3.3"
   }
 }
