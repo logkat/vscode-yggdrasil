@@ -2,38 +2,27 @@ import * as vscode from 'vscode';
 import { GitService } from '../git/GitService';
 import { WorktreeItem, WorktreeFileItem, WorktreeProvider } from '../tree/WorktreeProvider';
 import { makeUri } from '../content/YggContentProvider';
+import {
+  StatusBarManager,
+  SwitchMode,
+  SWITCH_MODE_STATE_KEY,
+  sanitizeBranchForPath,
+} from './StatusBarManager';
 
-type SwitchMode = 'newWindow' | 'replace' | 'addWorkspace';
-const STATE_KEY = 'ygg.switchMode';
-
-export class CommandRegistry {
-  private statusBarItem: vscode.StatusBarItem | undefined;
-  private worktreeStatusBarItem: vscode.StatusBarItem | undefined;
+export class CommandRegistry implements vscode.Disposable {
+  private readonly statusBar: StatusBarManager;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly git: GitService,
     private readonly provider: WorktreeProvider,
-  ) {}
+  ) {
+    this.statusBar = new StatusBarManager(context, git);
+  }
 
   register(): vscode.Disposable[] {
     const disposables: vscode.Disposable[] = [];
-    this.restoreStatusBar();
-
-    if (this.statusBarItem) {
-      disposables.push(this.statusBarItem);
-    }
-
-    // Create the status bar item if it doesn't exist
-    if (!this.worktreeStatusBarItem) {
-      this.worktreeStatusBarItem = vscode.window.createStatusBarItem(
-        vscode.StatusBarAlignment.Left,
-        100 // Priority
-      );
-      this.worktreeStatusBarItem.command = 'ygg.selectAndSwitch';
-      this.worktreeStatusBarItem.tooltip = 'Switch Worktree';
-      disposables.push(this.worktreeStatusBarItem);
-    }
+    disposables.push(...this.statusBar.initialize());
 
     disposables.push(vscode.commands.registerCommand('ygg.refresh', () => {
       this.git.invalidateCache();
@@ -57,7 +46,7 @@ export class CommandRegistry {
 
     disposables.push(vscode.commands.registerCommand('ygg.prune', () => this.pruneWorktrees()));
 
-    disposables.push(vscode.commands.registerCommand('ygg.setBaseBranch', (item?: WorktreeItem) => 
+    disposables.push(vscode.commands.registerCommand('ygg.setBaseBranch', (item?: WorktreeItem) =>
       this.setBaseBranch(item)
     ));
 
@@ -100,7 +89,7 @@ export class CommandRegistry {
       return;
     }
 
-    const stored = this.context.globalState.get<SwitchMode>(STATE_KEY);
+    const stored = this.context.globalState.get<SwitchMode>(SWITCH_MODE_STATE_KEY);
     let mode: SwitchMode;
     if (stored) {
       mode = stored;
@@ -109,8 +98,8 @@ export class CommandRegistry {
       if (!result) { return; }
       mode = result.mode;
       if (result.remember) {
-        await this.context.globalState.update(STATE_KEY, mode);
-        this.showStatusBar(mode);
+        await this.context.globalState.update(SWITCH_MODE_STATE_KEY, mode);
+        this.statusBar.showSwitchMode(mode);
       }
     }
     await this.openWorktree(item.worktree.path, mode);
@@ -130,8 +119,8 @@ export class CommandRegistry {
     const result = await this.promptSwitchMode(picked.wt.branch, picked.wt.path);
     if (!result) { return; }
     if (result.remember) {
-      await this.context.globalState.update(STATE_KEY, result.mode);
-      this.showStatusBar(result.mode);
+      await this.context.globalState.update(SWITCH_MODE_STATE_KEY, result.mode);
+      this.statusBar.showSwitchMode(result.mode);
     }
     await this.openWorktree(picked.wt.path, result.mode);
   }
@@ -202,7 +191,7 @@ export class CommandRegistry {
     const branch = prefillBranch || await vscode.window.showInputBox({ prompt: 'Branch name' });
     if (!branch) { return; }
 
-    const safeBranch = branch.replace(/\//g, '-');
+    const safeBranch = sanitizeBranchForPath(branch);
 
     const locations = [
       { label: 'Parent directory', detail: `../${safeBranch}`, value: `../${safeBranch}` },
@@ -223,7 +212,7 @@ export class CommandRegistry {
     } else {
       wtPath = pickedLocation.value;
     }
-    
+
     if (!wtPath) { return; }
 
     try {
@@ -309,35 +298,13 @@ export class CommandRegistry {
     }
   }
 
-  private restoreStatusBar(): void {
-    const stored = this.context.globalState.get<SwitchMode>(STATE_KEY);
-    if (stored) { this.showStatusBar(stored); }
-  }
-
-  private showStatusBar(mode: SwitchMode): void {
-    if (!this.statusBarItem) {
-      this.statusBarItem = vscode.window.createStatusBarItem(
-        vscode.StatusBarAlignment.Left
-      );
-    }
-    const labels: Record<SwitchMode, string> = {
-      newWindow: 'New Window',
-      replace: 'Replace Window',
-      addWorkspace: 'Add to Workspace',
-    };
-    this.statusBarItem.text = `$(git-branch) Worktree: ${labels[mode]} ×`;
-    this.statusBarItem.tooltip = 'Click to clear remembered worktree switch mode';
-    this.statusBarItem.command = 'ygg.clearSwitchMode';
-    this.statusBarItem.show();
-  }
-
   private async openDiff(item?: WorktreeFileItem): Promise<void> {
     if (!item) { return; }
     const { file, worktreePath, branch, baseSha } = item;
     const baseUri = makeUri('BASE', worktreePath, file.relativePath, baseSha);
     const workUri = makeUri('WORK', worktreePath, file.relativePath);
     const title   = `${branch} — ${file.relativePath} (branch base ↔ working tree)`;
-    
+
     try {
       await vscode.commands.executeCommand('vscode.diff', baseUri, workUri, title, { preview: true });
     } catch (err: unknown) {
@@ -346,35 +313,19 @@ export class CommandRegistry {
   }
 
   private async clearSwitchMode(): Promise<void> {
-    const had = this.context.globalState.get<SwitchMode>(STATE_KEY);
-    await this.context.globalState.update(STATE_KEY, undefined);
-    this.statusBarItem?.hide();
-    this.statusBarItem?.dispose();
-    this.statusBarItem = undefined;
+    const had = this.context.globalState.get<SwitchMode>(SWITCH_MODE_STATE_KEY);
+    await this.context.globalState.update(SWITCH_MODE_STATE_KEY, undefined);
+    this.statusBar.clearSwitchMode();
     if (!had) {
       vscode.window.showInformationMessage('No remembered switch mode to clear.');
     }
   }
 
   public async updateWorktreeStatusBar(): Promise<void> {
-    try {
-      // Use cached worktrees if available, otherwise fetch
-      const worktrees = this.git.getCachedWorktrees() ?? await this.git.listWorktrees();
-      const current = worktrees.find(wt => wt.isCurrent);
-      
-      if (!this.worktreeStatusBarItem) {
-        // Should already be created in register(), but safety check
-        return;
-      }
+    await this.statusBar.refreshWorktreeName();
+  }
 
-      if (current) {
-        this.worktreeStatusBarItem.text = `$(file-submodule) ${current.branch}`;
-        this.worktreeStatusBarItem.show();
-      } else {
-        this.worktreeStatusBarItem.hide();
-      }
-    } catch {
-      this.worktreeStatusBarItem?.hide();
-    }
+  dispose(): void {
+    this.statusBar.dispose();
   }
 }

@@ -53,7 +53,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       welcomeCommand,
       contentProviderDisposable,
       ...commands,
-      provider
+      provider,
+      registry,
     );
 
     await maybeShowWelcome(context);
@@ -65,10 +66,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // Ensure status bar is updated with the current worktree name
       await registry.updateWorktreeStatusBar();
     } catch (err) {
-      // Expected if not a git repo or no workspace open
+      // Expected if not a git repo or no workspace open.
+      console.log('Yggdrasil: initial index failed', err);
     }
   } catch (err) {
-    // Silent failure for activation - extension will just not be ready
+    // An unexpected wiring failure (e.g. a bad disposable). Log so users can
+    // file an issue rather than silently shipping a broken extension.
+    console.error('Yggdrasil: activation failed', err);
   } finally {
     vscode.commands.executeCommand('setContext', 'yggdrasil.isReady', true);
   }
