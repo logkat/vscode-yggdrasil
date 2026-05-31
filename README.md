@@ -24,14 +24,12 @@ Set a custom **Base Branch** per worktree to track changes against `develop`, `s
 
 ## Installation
 
-Install **logkat.yggdrasil** from:
+Install **LogKat.git-yggdrasil** from:
 
-- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=logkat.yggdrasil)
-- [Open VSX](https://open-vsx.org/extension/logkat/yggdrasil) (Cursor and other Open VSX clients)
+- [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=LogKat.git-yggdrasil)
+- [Open VSX](https://open-vsx.org/extension/LogKat/git-yggdrasil) (Cursor and other Open VSX clients)
 
 Then open a Git repository and click the Yggdrasil icon in the Activity Bar.
-
-> **Note:** The previous listing `logKat-yggdrasil.yggdrasil` is deprecated. Install `logkat.yggdrasil` instead.
 
 ## Commands Reference
 
@@ -60,4 +58,4 @@ When switching, you can choose to "Remember my choice". This preference is store
 Found a bug or have a request? Please open an issue on the [GitHub repository](https://github.com/logkat/vscode-yggdrasil).
 
 ---
-**Published by [logkat](https://marketplace.visualstudio.com/publishers/logkat)**
+**Published by [LogKat](https://marketplace.visualstudio.com/publishers/LogKat)**
