@@ -9,7 +9,7 @@ import {
   sanitizeBranchForPath,
 } from './StatusBarManager';
 
-export class CommandRegistry {
+export class CommandRegistry implements vscode.Disposable {
   private readonly statusBar: StatusBarManager;
 
   constructor(
@@ -323,5 +323,9 @@ export class CommandRegistry {
 
   public async updateWorktreeStatusBar(): Promise<void> {
     await this.statusBar.refreshWorktreeName();
+  }
+
+  dispose(): void {
+    this.statusBar.dispose();
   }
 }

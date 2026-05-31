@@ -53,7 +53,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       welcomeCommand,
       contentProviderDisposable,
       ...commands,
-      provider
+      provider,
+      registry,
     );
 
     await maybeShowWelcome(context);
@@ -65,8 +66,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       // Ensure status bar is updated with the current worktree name
       await registry.updateWorktreeStatusBar();
     } catch (err) {
-      // Expected if not a git repo or no workspace open — leave the ready
-      // state false so the welcome view's "no git repo" message renders.
+      // Expected if not a git repo or no workspace open.
       console.log('Yggdrasil: initial index failed', err);
     }
   } catch (err) {

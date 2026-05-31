@@ -43,9 +43,12 @@ export class YggContentProvider implements vscode.TextDocumentContentProvider {
 
     if (side === 'WORK') {
       try {
+        // Reject absolute paths before resolving so path.resolve(wt, file)
+        // cannot silently discard the worktree base when file starts with '/'.
+        if (path.isAbsolute(file)) { return ''; }
         const fullPath = path.resolve(wt, file);
         const resolvedWt = path.resolve(wt);
-        // Security: Ensure the resolved path is inside the worktree root.
+        // Ensure the resolved path is strictly inside the worktree root.
         // path.relative returns '' for equal paths and '..'-prefixed strings
         // for paths outside the root — both should be rejected.
         const rel = path.relative(resolvedWt, fullPath);
