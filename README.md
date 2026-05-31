@@ -1,4 +1,4 @@
-# Yggdrasil — Git Worktree Explorer
+# Yggdrasil Git Worktrees
 
 Explore and switch git worktrees directly from the VS Code sidebar with a dedicated Activity Bar panel.
 
