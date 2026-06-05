@@ -143,8 +143,10 @@ export class WorktreeFileItem extends vscode.TreeItem {
     public readonly worktreePath: string,
     public readonly branch: string,
     public readonly baseSha: string,
+    resourceUri: vscode.Uri,
   ) {
     super(path.basename(file.relativePath), vscode.TreeItemCollapsibleState.None);
+    this.resourceUri = resourceUri;
     this.description = file.status;
     this.contextValue = 'worktreeFile';
     this.id = path.join(worktreePath, file.relativePath);

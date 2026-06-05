@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { GitService } from '../git/GitService';
 import { FileStatus, Worktree } from '../git/parsers';
 import { WorktreeDecorationProvider } from './WorktreeDecorationProvider';
+import { sortWorktrees } from './sort';
 import {
   WorktreeItem,
   WorktreeFolderItem,
@@ -194,41 +195,13 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
       if (this.rootCache) { return this.rootCache; }
 
-      const sortedWorktrees = this.sortWorktrees(cachedWorktrees);
+      const sortedWorktrees = sortWorktrees(cachedWorktrees);
       this.rootCache = sortedWorktrees.map((wt) => this.getOrCreateWorktreeItem(wt, cachedRepoRoot));
       return this.rootCache;
     }
 
     // Async path (cache miss)
     return this.loadRootNodes();
-  }
-
-  private sortWorktrees(wts: Worktree[]): Worktree[] {
-    const defaultBranches = ['main', 'develop', 'master'];
-    return [...wts].sort((a, b) => {
-      // 1. Virtual items ALWAYS first
-      if (a.isVirtual && !b.isVirtual) { return -1; }
-      if (!a.isVirtual && b.isVirtual) { return 1; }
-
-      const aIsDefault = defaultBranches.includes(a.branch);
-      const bIsDefault = defaultBranches.includes(b.branch);
-
-      if (aIsDefault && !bIsDefault) { return -1; }
-      if (!aIsDefault && bIsDefault) { return 1; }
-
-      if (aIsDefault && bIsDefault) {
-        const aIndex = defaultBranches.indexOf(a.branch);
-        const bIndex = defaultBranches.indexOf(b.branch);
-        if (aIndex !== bIndex) { return aIndex - bIndex; }
-      }
-
-      // The main worktree should always be first (among non-virtual default branches)
-      if (a.isMain && !b.isMain) { return -1; }
-      if (!a.isMain && b.isMain) { return 1; }
-
-      // Otherwise alphabetical by branch
-      return a.branch.localeCompare(b.branch);
-    });
   }
 
   private async loadRootNodes(): Promise<TreeNode[]> {
@@ -241,7 +214,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
         this.setupWatchers(repoRoot, worktrees);
       }
 
-      const sortedWorktrees = this.sortWorktrees(worktrees);
+      const sortedWorktrees = sortWorktrees(worktrees);
       this.rootCache = sortedWorktrees.map((wt) => this.getOrCreateWorktreeItem(wt, repoRoot));
       return this.rootCache;
     } catch (err: unknown) {
@@ -299,7 +272,8 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
       existing.updateFrom(file);
       return existing;
     }
-    const item = new WorktreeFileItem(file, wtPath, branch, baseSha);
+    const uri = this.makeWorktreeUri(path.join(wtPath, file.relativePath), branch);
+    const item = new WorktreeFileItem(file, wtPath, branch, baseSha, uri);
     this.instanceCache.set(id, item);
     return item;
   }

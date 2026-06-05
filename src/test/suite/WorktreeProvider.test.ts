@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { WorktreeFileItem, WorktreeFolderItem, WorktreeItem, WorktreeProvider } from '../../tree/WorktreeProvider';
 import { FileStatus, Worktree } from '../../git/GitService';
@@ -12,36 +13,43 @@ function makeFileStatus(overrides: Partial<FileStatus> = {}): FileStatus {
   };
 }
 
+function mockFileUri(wtPath: string, relativePath: string, branch: string): vscode.Uri {
+  return vscode.Uri.parse(`ygg-worktree://worktree?path=${encodeURIComponent(path.join(wtPath, relativePath))}&branch=${encodeURIComponent(branch)}`);
+}
+
 suite('WorktreeFileItem', () => {
   test('label is filename only', () => {
-    const item = new WorktreeFileItem(makeFileStatus({ relativePath: 'src/bar.ts' }), '/repo/wt', 'feature/x', 'baseSHA');
+    const wtPath = '/repo/wt';
+    const branch = 'feature/x';
+    const relativePath = 'src/bar.ts';
+    const item = new WorktreeFileItem(makeFileStatus({ relativePath }), wtPath, branch, 'baseSHA', mockFileUri(wtPath, relativePath, branch));
     assert.strictEqual(item.label, 'bar.ts');
   });
 
   test('description is the status code', () => {
-    const item = new WorktreeFileItem(makeFileStatus({ status: 'M' }), '/repo/wt', 'main', 'sha');
+    const item = new WorktreeFileItem(makeFileStatus({ status: 'M' }), '/repo/wt', 'main', 'sha', mockFileUri('/repo/wt', 'file.ts', 'main'));
     assert.strictEqual(item.description, 'M');
   });
 
   test('contextValue is worktreeFile', () => {
-    const item = new WorktreeFileItem(makeFileStatus(), '/repo/wt', 'main', 'sha');
+    const item = new WorktreeFileItem(makeFileStatus(), '/repo/wt', 'main', 'sha', mockFileUri('/repo/wt', 'file.ts', 'main'));
     assert.strictEqual(item.contextValue, 'worktreeFile');
   });
 
   test('command is ygg.openDiff with item as argument', () => {
-    const item = new WorktreeFileItem(makeFileStatus(), '/repo/wt', 'main', 'sha');
+    const item = new WorktreeFileItem(makeFileStatus(), '/repo/wt', 'main', 'sha', mockFileUri('/repo/wt', 'file.ts', 'main'));
     assert.strictEqual(item.command?.command, 'ygg.openDiff');
     assert.deepStrictEqual(item.command?.arguments, [item]);
   });
 
   test('collapsible state is None (leaf)', () => {
-    const item = new WorktreeFileItem(makeFileStatus(), '/repo/wt', 'main', 'sha');
+    const item = new WorktreeFileItem(makeFileStatus(), '/repo/wt', 'main', 'sha', mockFileUri('/repo/wt', 'file.ts', 'main'));
     assert.strictEqual(item.collapsibleState, vscode.TreeItemCollapsibleState.None);
   });
 
   test('stores file, worktreePath, branch as public properties', () => {
     const file = makeFileStatus();
-    const item = new WorktreeFileItem(file, '/repo/wt', 'feature/y', 'abc');
+    const item = new WorktreeFileItem(file, '/repo/wt', 'feature/y', 'abc', mockFileUri('/repo/wt', 'file.ts', 'feature/y'));
     assert.strictEqual(item.file, file);
     assert.strictEqual(item.worktreePath, '/repo/wt');
     assert.strictEqual(item.branch, 'feature/y');
@@ -59,7 +67,7 @@ suite('WorktreeFileItem', () => {
     ];
     for (const [status, expectedId] of cases) {
       test(`status '${status}' -> $(${expectedId})`, () => {
-        const item = new WorktreeFileItem(makeFileStatus({ status }), '/repo/wt', 'main', 'sha');
+        const item = new WorktreeFileItem(makeFileStatus({ status }), '/repo/wt', 'main', 'sha', mockFileUri('/repo/wt', 'file.ts', 'main'));
         assert.ok(item.iconPath instanceof vscode.ThemeIcon);
         assert.strictEqual((item.iconPath as vscode.ThemeIcon).id, expectedId);
       });
@@ -103,7 +111,7 @@ suite('WorktreeItem — collapsible state and resourceUri', () => {
 suite('WorktreeProvider.getChildren — branch dispatch', () => {
   test('returns [] for WorktreeFileItem (leaf)', async () => {
     const file: FileStatus = { relativePath: 'foo.ts', status: 'M', isUntracked: false };
-    const leaf = new WorktreeFileItem(file, '/repo', 'main', 'sha');
+    const leaf = new WorktreeFileItem(file, '/repo', 'main', 'sha', mockFileUri('/repo', 'foo.ts', 'main'));
     const git = {
       getCachedBranchChanges: () => undefined,
       getCachedWorktrees: () => undefined,
