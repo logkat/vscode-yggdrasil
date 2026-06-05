@@ -1,4 +1,5 @@
 import * as assert from 'assert';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { CommandRegistry } from '../../commands/CommandRegistry';
 import { WorktreeFileItem, WorktreeProvider } from '../../tree/WorktreeProvider';
@@ -37,7 +38,8 @@ function makeMockProvider(): WorktreeProvider {
 
 function makeFileItem(relativePath: string, status: FileStatus['status'], worktreePath: string, branch: string, baseSha = 'sha123'): WorktreeFileItem {
   const file: FileStatus = { relativePath, status, isUntracked: false };
-  return new WorktreeFileItem(file, worktreePath, branch, baseSha);
+  const uri = vscode.Uri.parse(`ygg-worktree://worktree?path=${encodeURIComponent(path.join(worktreePath, relativePath))}&branch=${encodeURIComponent(branch)}`);
+  return new WorktreeFileItem(file, worktreePath, branch, baseSha, uri);
 }
 
 suite('CommandRegistry — ygg.openDiff', () => {
