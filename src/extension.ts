@@ -22,7 +22,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       },
     );
 
-    const decorationProvider = new WorktreeDecorationProvider();
+    const decorationProvider = new WorktreeDecorationProvider(git);
     const provider = new WorktreeProvider(git, decorationProvider);
 
     const treeView = vscode.window.createTreeView('ygg.worktrees', {
