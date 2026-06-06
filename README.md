@@ -2,6 +2,8 @@
 
 Explore and switch git worktrees directly from the VS Code sidebar with a dedicated Activity Bar panel.
 
+**[yggdrasil.logkat.dev](http://yggdrasil.logkat.dev/)** · [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=LogKat.git-yggdrasil) · [Open VSX](https://open-vsx.org/extension/LogKat/git-yggdrasil) · [GitHub](https://github.com/logkat/vscode-yggdrasil)
+
 ## Key Features
 
 ### 🌲 Activity Bar Explorer
@@ -24,7 +26,7 @@ Set a custom **Base Branch** per worktree to track changes against `develop`, `s
 
 ## Installation
 
-Install **LogKat.git-yggdrasil** from:
+Visit **[yggdrasil.logkat.dev](http://yggdrasil.logkat.dev/)** for full documentation, or install directly from:
 
 - [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=LogKat.git-yggdrasil)
 - [Open VSX](https://open-vsx.org/extension/LogKat/git-yggdrasil) (Cursor and other Open VSX clients)
@@ -56,6 +58,11 @@ When switching, you can choose to "Remember my choice". This preference is store
 
 ## Contributing
 Found a bug or have a request? Please open an issue on the [GitHub repository](https://github.com/logkat/vscode-yggdrasil).
+
+## Contributors
+
+<a href="https://github.com/prakharsingh"><img src="https://avatars.githubusercontent.com/u/6357228?v=4" width="64" height="64" alt="Prakhar Singh" title="Prakhar Singh" /></a>
+<a href="https://github.com/Abhi347"><img src="https://avatars.githubusercontent.com/u/1445581?v=4" width="64" height="64" alt="Abhishek Jain" title="Abhishek Jain" /></a>
 
 ---
 **Published by [LogKat](https://marketplace.visualstudio.com/publishers/LogKat)**
