@@ -25,7 +25,7 @@
   "bugs": {
     "url": "https://github.com/logkat/vscode-yggdrasil/issues"
   },
-  "homepage": "https://github.com/logkat/vscode-yggdrasil#readme",
+  "homepage": "http://yggdrasil.logkat.dev/",
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true
