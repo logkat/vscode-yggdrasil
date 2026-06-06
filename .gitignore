@@ -5,3 +5,5 @@ out/
 .env
 .agent/
 .remember/
+docs/superpowers/
+.claude/
