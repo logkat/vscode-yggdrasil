@@ -22,6 +22,10 @@
     "type": "git",
     "url": "https://github.com/logkat/vscode-yggdrasil"
   },
+  "bugs": {
+    "url": "https://github.com/logkat/vscode-yggdrasil/issues"
+  },
+  "homepage": "https://github.com/logkat/vscode-yggdrasil#readme",
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true
