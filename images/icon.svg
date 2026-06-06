@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect width="128" height="128" rx="22" fill="#0F1F14"/>
+  <!-- Trunk (main branch) -->
+  <line x1="64" y1="18" x2="64" y2="94" stroke="#4ADE80" stroke-width="4" stroke-linecap="round"/>
+  <!-- Upper branches -->
+  <line x1="64" y1="36" x2="26" y2="18" stroke="#4ADE80" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="64" y1="36" x2="102" y2="18" stroke="#4ADE80" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Lower branches -->
+  <line x1="64" y1="62" x2="30" y2="46" stroke="#4ADE80" stroke-width="3" stroke-linecap="round"/>
+  <line x1="64" y1="62" x2="98" y2="46" stroke="#4ADE80" stroke-width="3" stroke-linecap="round"/>
+  <!-- Three roots -->
+  <line x1="64" y1="94" x2="36" y2="116" stroke="#4ADE80" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="64" y1="94" x2="64" y2="120" stroke="#4ADE80" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="64" y1="94" x2="92" y2="116" stroke="#4ADE80" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Branch point nodes (lighter) -->
+  <circle cx="64" cy="36" r="5.5" fill="#86EFAC"/>
+  <circle cx="64" cy="62" r="5.5" fill="#86EFAC"/>
+  <!-- Tip nodes -->
+  <circle cx="64" cy="18" r="5" fill="#4ADE80"/>
+  <circle cx="26" cy="18" r="5" fill="#22C55E"/>
+  <circle cx="102" cy="18" r="5" fill="#22C55E"/>
+  <circle cx="30" cy="46" r="4.5" fill="#22C55E"/>
+  <circle cx="98" cy="46" r="4.5" fill="#22C55E"/>
+  <!-- Root endpoint nodes -->
+  <circle cx="36" cy="116" r="4" fill="#4ADE80"/>
+  <circle cx="64" cy="120" r="4" fill="#4ADE80"/>
+  <circle cx="92" cy="116" r="4" fill="#4ADE80"/>
+</svg>
