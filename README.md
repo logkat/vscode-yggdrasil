@@ -59,5 +59,10 @@ When switching, you can choose to "Remember my choice". This preference is store
 ## Contributing
 Found a bug or have a request? Please open an issue on the [GitHub repository](https://github.com/logkat/vscode-yggdrasil).
 
+## Contributors
+
+<a href="https://github.com/prakharsingh"><img src="https://avatars.githubusercontent.com/u/6357228?v=4" width="64" height="64" alt="Prakhar Singh" title="Prakhar Singh" /></a>
+<a href="https://github.com/Abhi347"><img src="https://avatars.githubusercontent.com/u/1445581?v=4" width="64" height="64" alt="Abhishek Jain" title="Abhishek Jain" /></a>
+
 ---
 **Published by [LogKat](https://marketplace.visualstudio.com/publishers/LogKat)**
