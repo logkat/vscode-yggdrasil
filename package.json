@@ -2,15 +2,26 @@
   "name": "git-yggdrasil",
   "displayName": "Yggdrasil Git Worktrees",
   "description": "Explore and switch git worktrees from the VS Code sidebar",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "LogKat",
   "license": "MIT",
   "icon": "./images/icon.png",
+  "keywords": [
+    "git",
+    "worktree",
+    "git-worktree",
+    "branch",
+    "scm",
+    "sidebar",
+    "source-control",
+    "ai-agents",
+    "agentic"
+  ],
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "SCM Providers"
   ],
   "activationEvents": [
     "onView:ygg.worktrees",
