@@ -6,11 +6,22 @@
   "publisher": "LogKat",
   "license": "MIT",
   "icon": "./images/icon.png",
+  "keywords": [
+    "git",
+    "worktree",
+    "git-worktree",
+    "branch",
+    "scm",
+    "sidebar",
+    "source-control",
+    "ai-agents",
+    "agentic"
+  ],
   "engines": {
     "vscode": "^1.74.0"
   },
   "categories": [
-    "Other"
+    "SCM Providers"
   ],
   "activationEvents": [
     "onView:ygg.worktrees",
