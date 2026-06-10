@@ -2,7 +2,15 @@
 
 Explore and switch git worktrees directly from the VS Code sidebar with a dedicated Activity Bar panel.
 
-**[yggdrasil.logkat.dev](http://yggdrasil.logkat.dev/)** · [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=LogKat.git-yggdrasil) · [Open VSX](https://open-vsx.org/extension/LogKat/git-yggdrasil) · [GitHub](https://github.com/logkat/vscode-yggdrasil)
+[![VS Marketplace](https://badgen.net/vs-marketplace/v/LogKat.git-yggdrasil?icon=visualstudio&label=VS%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=LogKat.git-yggdrasil)
+[![VS Marketplace Installs](https://badgen.net/vs-marketplace/i/LogKat.git-yggdrasil?label=installs)](https://marketplace.visualstudio.com/items?itemName=LogKat.git-yggdrasil)
+[![Open VSX](https://img.shields.io/open-vsx/v/LogKat/git-yggdrasil?style=flat&label=Open%20VSX&color=C160EF)](https://open-vsx.org/extension/LogKat/git-yggdrasil)
+[![Open VSX Downloads](https://img.shields.io/open-vsx/dt/LogKat/git-yggdrasil?style=flat&label=downloads&color=C160EF)](https://open-vsx.org/extension/LogKat/git-yggdrasil)
+[![CI](https://badgen.net/github/checks/logkat/vscode-yggdrasil/main?label=CI)](https://github.com/logkat/vscode-yggdrasil/actions/workflows/ci.yml)
+[![License: MIT](https://badgen.net/github/license/logkat/vscode-yggdrasil)](LICENSE)
+[![GitHub Stars](https://badgen.net/github/stars/logkat/vscode-yggdrasil)](https://github.com/logkat/vscode-yggdrasil/stargazers)
+
+**[yggdrasil.logkat.dev](http://yggdrasil.logkat.dev/)**
 
 ## Key Features
 
