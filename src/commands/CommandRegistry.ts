@@ -8,6 +8,8 @@ import {
   SWITCH_MODE_STATE_KEY,
   sanitizeBranchForPath,
 } from './StatusBarManager';
+import { AgentSession } from '../agents/IAgentProvider';
+import { AgentSessionService } from '../agents/AgentSessionService';
 
 export class CommandRegistry implements vscode.Disposable {
   private readonly statusBar: StatusBarManager;
@@ -16,6 +18,7 @@ export class CommandRegistry implements vscode.Disposable {
     private readonly context: vscode.ExtensionContext,
     private readonly git: GitService,
     private readonly provider: WorktreeProvider,
+    private readonly agentService?: AgentSessionService,
   ) {
     this.statusBar = new StatusBarManager(context, git);
   }
@@ -70,6 +73,28 @@ export class CommandRegistry implements vscode.Disposable {
     disposables.push(vscode.commands.registerCommand(
       'ygg.openDiff',
       (item?: WorktreeFileItem) => this.openDiff(item)
+    ));
+
+    disposables.push(vscode.commands.registerCommand(
+      'ygg.copyAgentResumeCommand',
+      (session: AgentSession) => {
+        const text = session.resumeCommand ?? session.sessionId;
+        vscode.env.clipboard.writeText(text);
+        vscode.window.showInformationMessage(`Copied: ${text}`);
+      }
+    ));
+
+    disposables.push(vscode.commands.registerCommand(
+      'ygg.copyAgentSessionId',
+      (session: AgentSession) => {
+        vscode.env.clipboard.writeText(session.sessionId);
+        vscode.window.showInformationMessage(`Copied session ID: ${session.sessionId}`);
+      }
+    ));
+
+    disposables.push(vscode.commands.registerCommand(
+      'ygg.detectAgentProviders',
+      async () => this.detectAgentProviders()
     ));
 
     return disposables;
@@ -323,6 +348,40 @@ export class CommandRegistry implements vscode.Disposable {
 
   public async updateWorktreeStatusBar(): Promise<void> {
     await this.statusBar.refreshWorktreeName();
+  }
+
+  private async detectAgentProviders(): Promise<void> {
+    const detected: string[] = [];
+    const { promises: fsp } = await import('fs');
+    const os = await import('os');
+    const path = await import('path');
+
+    try {
+      await fsp.access(path.join(os.homedir(), '.claude', 'sessions'));
+      detected.push('claude-code');
+    } catch { /* not installed */ }
+
+    const desktopDir = (() => {
+      switch (process.platform) {
+        case 'darwin': return path.join(os.homedir(), 'Library', 'Application Support', 'Claude');
+        case 'win32': return path.join(process.env.APPDATA ?? os.homedir(), 'Claude');
+        default: return path.join(os.homedir(), '.config', 'Claude');
+      }
+    })();
+    try {
+      await fsp.access(path.join(desktopDir, 'git-worktrees.json'));
+      detected.push('claude-desktop');
+    } catch { /* not installed */ }
+
+    if (detected.length === 0) {
+      vscode.window.showInformationMessage('No supported coding agents detected.');
+      return;
+    }
+    const config = vscode.workspace.getConfiguration('ygg');
+    await config.update('agentProviders', detected, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(
+      `Detected agents: ${detected.join(', ')}. Updated ygg.agentProviders.`
+    );
   }
 
   dispose(): void {

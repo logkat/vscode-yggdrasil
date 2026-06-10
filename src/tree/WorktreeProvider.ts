@@ -10,12 +10,15 @@ import {
   WorktreeFileItem,
   WorktreeContextValue,
 } from './items';
+import { AgentSessionService } from '../agents/AgentSessionService';
+import { AgentSession } from '../agents/IAgentProvider';
+import { AgentSessionsItem, AgentSessionItem } from './AgentSessionsItem';
 
 // Re-exports preserve the existing public surface for tests and external callers.
 export { WorktreeItem, WorktreeFolderItem, WorktreeFileItem } from './items';
 export type { WorktreeContextValue } from './items';
 
-type TreeNode = WorktreeItem | WorktreeFolderItem | WorktreeFileItem | vscode.TreeItem;
+type TreeNode = WorktreeItem | WorktreeFolderItem | WorktreeFileItem | AgentSessionsItem | AgentSessionItem | vscode.TreeItem;
 type CachedBranchChanges = { files: FileStatus[]; baseSha: string; baseRef: string };
 
 function worktreeFieldsEqual(a: Worktree, b: Worktree): boolean {
@@ -68,16 +71,19 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   // Memoization caches for tree structure
   private treeCache = new Map<string, (WorktreeFolderItem | WorktreeFileItem)[]>();
   private rootCache: TreeNode[] | undefined;
+  private agentSessionCache = new Map<string, AgentSession[]>();
 
   constructor(
     private readonly git: GitService,
-    private readonly decorationProvider?: WorktreeDecorationProvider
+    private readonly decorationProvider?: WorktreeDecorationProvider,
+    private readonly agentService?: AgentSessionService,
   ) {}
 
   public refresh(): void {
     // Only clear the structural caches, keep the object instances in instanceCache
     this.treeCache.clear();
     this.rootCache = undefined;
+    this.agentSessionCache.clear();
     this._onDidChangeTreeData.fire();
     this.decorationProvider?.refresh();
   }
@@ -89,7 +95,23 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     try {
       const oldWorktrees = this.git.getCachedWorktrees();
       const fresh = await this.git.listWorktrees();
-      const changed = !worktreeListsEqual(oldWorktrees, fresh);
+
+      let sessionsChanged = false;
+      if (this.agentService) {
+        await Promise.all(fresh.map(wt =>
+          this.agentService!.getSessionsForWorktree(wt.path)
+            .then(s => {
+              const prev = this.agentSessionCache.get(wt.path);
+              if (!sessionsChanged && JSON.stringify(prev ?? []) !== JSON.stringify(s)) {
+                sessionsChanged = true;
+              }
+              this.agentSessionCache.set(wt.path, s);
+            })
+            .catch(() => { this.agentSessionCache.set(wt.path, []); })
+        ));
+      }
+
+      const changed = !worktreeListsEqual(oldWorktrees, fresh) || sessionsChanged;
 
       if (changed) {
         this.pruneInstanceCacheForWorktrees(fresh);
@@ -131,6 +153,10 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   getChildren(element?: TreeNode): TreeNode[] | Thenable<TreeNode[]> {
     // Leaf nodes have no children
+    if (element instanceof AgentSessionItem) { return []; }
+    if (element instanceof AgentSessionsItem) {
+      return element.sessions.map(s => new AgentSessionItem(s));
+    }
     if (element instanceof WorktreeFileItem) { return []; }
 
     // Expanding a folder item → return its pre-built children
@@ -148,31 +174,38 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private getChildrenForWorktree(element: WorktreeItem): TreeNode[] | Thenable<TreeNode[]> {
+    const agentNodes = this.buildAgentNodes(element.worktree.path);
+
     const cached = this.git.getCachedBranchChanges(element.worktree.path);
     if (cached) {
       this.triggerNodeBackgroundRefresh(element);
 
-      // Reuse memoized tree if available
       const memoized = this.treeCache.get(element.worktree.path);
-      if (memoized) { return memoized; }
+      if (memoized) { return [...agentNodes, ...memoized]; }
 
       const result = this.renderBranchChanges(cached, element.worktree.path, element.worktree.branch);
       this.treeCache.set(element.worktree.path, result as (WorktreeFolderItem | WorktreeFileItem)[]);
-      return result;
+      return [...agentNodes, ...result];
     }
 
-    // Async path (cache miss)
     return this.git.getWorktreeBranchChanges(element.worktree.path).then((fresh) => {
       const result = this.renderBranchChanges(fresh, element.worktree.path, element.worktree.branch);
       this.treeCache.set(element.worktree.path, result as (WorktreeFolderItem | WorktreeFileItem)[]);
-      return result;
+      return [...agentNodes, ...result];
     }).catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       const errorItem = new vscode.TreeItem(`Error: ${msg}`, vscode.TreeItemCollapsibleState.None);
       errorItem.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('list.errorForeground'));
       errorItem.tooltip = new vscode.MarkdownString(`**Git Error:**\n\n${msg}`);
-      return [errorItem];
+      return [...agentNodes, errorItem];
     });
+  }
+
+  private buildAgentNodes(worktreePath: string): TreeNode[] {
+    const sessions = this.agentSessionCache.get(worktreePath) ?? [];
+    const showWhenEmpty = vscode.workspace.getConfiguration('ygg').get<boolean>('showAgentNodeWhenEmpty', false);
+    if (sessions.length === 0 && !showWhenEmpty) { return []; }
+    return [new AgentSessionsItem(sessions)];
   }
 
   private renderBranchChanges(
@@ -210,6 +243,14 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
       const worktrees = await this.git.listWorktrees();
       this.lastError = undefined;
 
+      if (this.agentService) {
+        await Promise.all(worktrees.map(wt =>
+          this.agentService!.getSessionsForWorktree(wt.path)
+            .then(s => { this.agentSessionCache.set(wt.path, s); })
+            .catch(() => { this.agentSessionCache.set(wt.path, []); })
+        ));
+      }
+
       if (this.git.getWorkspaceRoot()) {
         this.setupWatchers(repoRoot, worktrees);
       }
@@ -244,9 +285,13 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
     if (existing instanceof WorktreeItem) {
       existing.updateFrom(wt, repoRoot, newUri);
+      const existingSessions = this.agentSessionCache.get(wt.path);
+      if (existingSessions !== undefined) { existing.updateSessions(existingSessions); }
       return existing;
     }
     const item = new WorktreeItem(wt, repoRoot, newUri);
+    const newSessions = this.agentSessionCache.get(wt.path);
+    if (newSessions !== undefined) { item.updateSessions(newSessions); }
     this.instanceCache.set(id, item);
     return item;
   }
