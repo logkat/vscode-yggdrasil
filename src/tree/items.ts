@@ -50,7 +50,7 @@ export class WorktreeItem extends vscode.TreeItem {
     this.label = worktree.locked ? `${worktree.branch} (locked)` : worktree.branch;
     this.description = path.relative(repoRoot, worktree.path) || '.';
     this.iconPath = WorktreeItem.iconFor(worktree);
-    this.tooltip = WorktreeItem.buildTooltip(worktree);
+    this.tooltip = WorktreeItem.buildTooltip(worktree, this.agentSessions);
     if (!this.resourceUri || this.resourceUri.toString() !== newUri.toString()) {
       this.resourceUri = newUri;
     }

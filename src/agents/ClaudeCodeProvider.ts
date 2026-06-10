@@ -35,7 +35,8 @@ export class ClaudeCodeProvider implements IAgentProvider {
       try {
         const raw: RawSession = JSON.parse(await this.readFile(path.join(this.sessionsDir, file)));
         if (!raw.sessionId || !raw.cwd) { continue; }
-        if (raw.cwd !== worktreePath) { continue; }
+        const norm = (p: string): string => path.resolve(p).replace(/[/\\]+$/, '');
+        if (norm(raw.cwd) !== norm(worktreePath)) { continue; }
         results.push({
           agent: 'claude-code',
           agentLabel: 'Claude Code',

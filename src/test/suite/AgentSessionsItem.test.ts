@@ -62,7 +62,7 @@ suite('AgentSessionItem', () => {
 
   test('description is just the 8-char id when no name', () => {
     const item = new AgentSessionItem(sess());
-    assert.strictEqual((item.description as string).trim(), 'abc123de');
+    assert.strictEqual(item.description as string, 'abc123de');
   });
 
   test('command is ygg.copyAgentResumeCommand when resumeCommand present', () => {

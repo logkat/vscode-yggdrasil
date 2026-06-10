@@ -43,6 +43,19 @@ function worktreeListsEqual(a: Worktree[] | undefined, b: Worktree[]): boolean {
   return true;
 }
 
+function sessionsRenderEqual(a: AgentSession[], b: AgentSession[]): boolean {
+  if (a.length !== b.length) { return false; }
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].sessionId !== b[i].sessionId
+      || a[i].status !== b[i].status
+      || a[i].isArchived !== b[i].isArchived
+      || a[i].name !== b[i].name) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function fileStatusesEqual(a: FileStatus[], b: FileStatus[]): boolean {
   if (a.length !== b.length) { return false; }
   for (let i = 0; i < a.length; i++) {
@@ -102,7 +115,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
           this.agentService!.getSessionsForWorktree(wt.path)
             .then(s => {
               const prev = this.agentSessionCache.get(wt.path);
-              if (!sessionsChanged && JSON.stringify(prev ?? []) !== JSON.stringify(s)) {
+              if (!sessionsChanged && !sessionsRenderEqual(prev ?? [], s)) {
                 sessionsChanged = true;
               }
               this.agentSessionCache.set(wt.path, s);
@@ -417,6 +430,11 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
         if (!liveWorktreePaths.has(item.worktreePath)) {
           this.instanceCache.delete(key);
         }
+      }
+    }
+    for (const key of this.agentSessionCache.keys()) {
+      if (!liveWorktreePaths.has(key)) {
+        this.agentSessionCache.delete(key);
       }
     }
   }

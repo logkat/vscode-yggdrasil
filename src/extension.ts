@@ -30,13 +30,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const agentProviderIds = vscode.workspace.getConfiguration('ygg')
       .get<string[]>('agentProviders', ['claude-code', 'claude-desktop']);
 
-    const allProviders = {
-      'claude-code': new ClaudeCodeProvider(),
-      'claude-desktop': new ClaudeDesktopProvider(),
-    };
+    const builtinProviders = [new ClaudeCodeProvider(), new ClaudeDesktopProvider()];
+    const byId = new Map(builtinProviders.map(p => [p.id, p]));
     const activeProviders = agentProviderIds
-      .map(id => allProviders[id as keyof typeof allProviders])
-      .filter(Boolean);
+      .map(id => byId.get(id))
+      .filter((p): p is (typeof builtinProviders)[number] => p !== undefined);
     const agentService = new AgentSessionService(activeProviders);
 
     const provider = new WorktreeProvider(git, decorationProvider, agentService);

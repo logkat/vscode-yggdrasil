@@ -378,7 +378,11 @@ export class CommandRegistry implements vscode.Disposable {
       return;
     }
     const config = vscode.workspace.getConfiguration('ygg');
-    await config.update('agentProviders', detected, vscode.ConfigurationTarget.Global);
+    const inspected = config.inspect<string[]>('agentProviders');
+    const target = inspected?.workspaceValue !== undefined
+      ? vscode.ConfigurationTarget.Workspace
+      : vscode.ConfigurationTarget.Global;
+    await config.update('agentProviders', detected, target);
     vscode.window.showInformationMessage(
       `Detected agents: ${detected.join(', ')}. Updated ygg.agentProviders.`
     );
