@@ -63,20 +63,6 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
   } as unknown as WorktreeItem;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function getRegistry(
-  ctx = makeMockContext(),
-  git = makeMockGit(),
-  provider = makeMockProvider()
-): CommandRegistry {
-  // Instead of registering again, we just return a new instance if needed,
-  // but the commands are already bound to the first instance.
-  // This is a limitation of testing in a real VS Code host.
-  // For these tests, we'll try to use the registry instance to call methods directly
-  // or rely on the fact that they call the same methods.
-  return new CommandRegistry(ctx, git, provider);
-}
-
 suite('CommandRegistry', () => {
   let disposables: vscode.Disposable[] = [];
 
