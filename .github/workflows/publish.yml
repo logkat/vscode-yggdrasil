@@ -18,6 +18,8 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - name: Verify lockfile is up to date
+        run: npm install --package-lock-only --ignore-scripts && git diff --exit-code package-lock.json
       - run: npm run compile
       - name: Run tests (xvfb for VS Code extension host)
         run: xvfb-run -a npm test
