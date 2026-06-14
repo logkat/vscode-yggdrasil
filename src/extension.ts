@@ -5,6 +5,9 @@ import { WorktreeDecorationProvider } from './tree/WorktreeDecorationProvider';
 import { CommandRegistry } from './commands/CommandRegistry';
 import { maybeShowWelcome, showWelcome } from './welcome/WelcomePage';
 import { YggContentProvider } from './content/YggContentProvider';
+import { AgentSessionService } from './agents/AgentSessionService';
+import { ClaudeCodeProvider } from './agents/ClaudeCodeProvider';
+import { ClaudeDesktopProvider } from './agents/ClaudeDesktopProvider';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   // Set initial loading state
@@ -23,7 +26,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
 
     const decorationProvider = new WorktreeDecorationProvider(git);
-    const provider = new WorktreeProvider(git, decorationProvider);
+
+    const agentProviderIds = vscode.workspace.getConfiguration('ygg')
+      .get<string[]>('agentProviders', ['claude-code', 'claude-desktop']);
+
+    const builtinProviders = [new ClaudeCodeProvider(), new ClaudeDesktopProvider()];
+    const byId = new Map(builtinProviders.map(p => [p.id, p]));
+    const activeProviders = agentProviderIds
+      .map(id => byId.get(id))
+      .filter((p): p is (typeof builtinProviders)[number] => p !== undefined);
+    const agentService = new AgentSessionService(activeProviders);
+
+    const provider = new WorktreeProvider(git, decorationProvider, agentService);
 
     const treeView = vscode.window.createTreeView('ygg.worktrees', {
       treeDataProvider: provider,
@@ -35,7 +49,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       showCollapseAll: false,
     });
 
-    const registry = new CommandRegistry(context, git, provider);
+    const registry = new CommandRegistry(context, git, provider, agentService);
     const commands = registry.register();
 
     const contentProvider = new YggContentProvider();

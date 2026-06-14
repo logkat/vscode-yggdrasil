@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { Worktree, FileStatus } from '../git/parsers';
+import { AgentSession } from '../agents/IAgentProvider';
 
 export type WorktreeContextValue =
   | 'worktreeItem'
@@ -10,6 +11,12 @@ export type WorktreeContextValue =
 
 export class WorktreeItem extends vscode.TreeItem {
   public worktree: Worktree;
+  private agentSessions: AgentSession[] = [];
+
+  public updateSessions(sessions: AgentSession[]): void {
+    this.agentSessions = sessions;
+    this.tooltip = WorktreeItem.buildTooltip(this.worktree, sessions);
+  }
 
   constructor(
     worktree: Worktree,
@@ -43,13 +50,13 @@ export class WorktreeItem extends vscode.TreeItem {
     this.label = worktree.locked ? `${worktree.branch} (locked)` : worktree.branch;
     this.description = path.relative(repoRoot, worktree.path) || '.';
     this.iconPath = WorktreeItem.iconFor(worktree);
-    this.tooltip = WorktreeItem.buildTooltip(worktree);
+    this.tooltip = WorktreeItem.buildTooltip(worktree, this.agentSessions);
     if (!this.resourceUri || this.resourceUri.toString() !== newUri.toString()) {
       this.resourceUri = newUri;
     }
   }
 
-  private static buildTooltip(worktree: Worktree): vscode.MarkdownString {
+  private static buildTooltip(worktree: Worktree, sessions: AgentSession[] = []): vscode.MarkdownString {
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
 
@@ -77,6 +84,17 @@ export class WorktreeItem extends vscode.TreeItem {
     }
     if (worktree.aheadCount && worktree.aheadCount > 0) {
       md.appendMarkdown(`- **Status:** $(git-commit) Ahead of base by **${worktree.aheadCount}** commit${worktree.aheadCount === 1 ? '' : 's'}\n`);
+    }
+
+    if (sessions.length > 0) {
+      md.appendMarkdown(`---\n\n`);
+      md.appendMarkdown(`**Agent Sessions (${sessions.length}):**\n\n`);
+      for (const s of sessions) {
+        const idShort = s.sessionId.slice(0, 8);
+        const namePart = s.name ? ` — "${s.name}"` : '';
+        const statusPart = s.status ? ` *(${s.status})*` : (s.isArchived ? ' *(archived)*' : '');
+        md.appendMarkdown(`- **${s.agentLabel}:** \`${idShort}\`${namePart}${statusPart}\n`);
+      }
     }
 
     return md;
