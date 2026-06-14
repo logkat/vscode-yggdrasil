@@ -22,15 +22,19 @@ const SESSION_JSON = {
 function makeProvider(
   worktrees: object | null,
   session: object | null,
-  sessionId = 'local_abc-123',
+  sessionId = 'local_abc-123'
 ): ClaudeDesktopProvider {
   const readFile = async (p: string) => {
     if (p.endsWith('git-worktrees.json')) {
-      if (worktrees === null) { throw Object.assign(new Error(), { code: 'ENOENT' }); }
+      if (worktrees === null) {
+        throw Object.assign(new Error(), { code: 'ENOENT' });
+      }
       return JSON.stringify(worktrees);
     }
     if (p.endsWith(`${sessionId}.json`)) {
-      if (session === null) { throw Object.assign(new Error(), { code: 'ENOENT' }); }
+      if (session === null) {
+        throw Object.assign(new Error(), { code: 'ENOENT' });
+      }
       return JSON.stringify(session);
     }
     throw Object.assign(new Error(), { code: 'ENOENT' });
@@ -81,7 +85,7 @@ suite('ClaudeDesktopProvider', () => {
   test('skips worktrees without leasedBy', async () => {
     const noLease = {
       worktrees: {
-        'orphan': { name: 'orphan', path: '/repo/.claude/worktrees/orphan', createdAt: 1 },
+        orphan: { name: 'orphan', path: '/repo/.claude/worktrees/orphan', createdAt: 1 },
       },
     };
     const provider = makeProvider(noLease, null);

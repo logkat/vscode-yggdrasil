@@ -18,7 +18,7 @@ export class CommandRegistry implements vscode.Disposable {
     private readonly context: vscode.ExtensionContext,
     private readonly git: GitService,
     private readonly provider: WorktreeProvider,
-    private readonly agentService?: AgentSessionService,
+    private readonly agentService?: AgentSessionService
   ) {
     this.statusBar = new StatusBarManager(context, git);
   }
@@ -27,81 +27,96 @@ export class CommandRegistry implements vscode.Disposable {
     const disposables: vscode.Disposable[] = [];
     disposables.push(...this.statusBar.initialize());
 
-    disposables.push(vscode.commands.registerCommand('ygg.refresh', () => {
-      this.git.invalidateCache();
-      this.provider.refresh();
-      this.updateWorktreeStatusBar();
-    }));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.refresh', () => {
+        this.git.invalidateCache();
+        this.provider.refresh();
+        this.updateWorktreeStatusBar();
+      })
+    );
 
-    disposables.push(vscode.commands.registerCommand('ygg.switch', (item?: WorktreeItem) =>
-      this.switchWorktree(item)
-    ));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.switch', (item?: WorktreeItem) =>
+        this.switchWorktree(item)
+      )
+    );
 
-    disposables.push(vscode.commands.registerCommand('ygg.selectAndSwitch', () =>
-      this.selectAndSwitch()
-    ));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.selectAndSwitch', () => this.selectAndSwitch())
+    );
 
-    disposables.push(vscode.commands.registerCommand('ygg.clearSwitchMode', () =>
-      this.clearSwitchMode()
-    ));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.clearSwitchMode', () => this.clearSwitchMode())
+    );
 
     disposables.push(vscode.commands.registerCommand('ygg.add', () => this.addWorktree()));
 
     disposables.push(vscode.commands.registerCommand('ygg.prune', () => this.pruneWorktrees()));
 
-    disposables.push(vscode.commands.registerCommand('ygg.setBaseBranch', (item?: WorktreeItem) =>
-      this.setBaseBranch(item)
-    ));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.setBaseBranch', (item?: WorktreeItem) =>
+        this.setBaseBranch(item)
+      )
+    );
 
-    disposables.push(vscode.commands.registerCommand('ygg.remove', (item?: WorktreeItem) =>
-      this.removeWorktree(item)
-    ));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.remove', (item?: WorktreeItem) =>
+        this.removeWorktree(item)
+      )
+    );
 
-    disposables.push(vscode.commands.registerCommand('ygg.copyPath', (item?: WorktreeItem) => {
-      if (!item || item.worktree.isVirtual) { return; }
-      vscode.env.clipboard.writeText(item.worktree.path);
-    }));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.copyPath', (item?: WorktreeItem) => {
+        if (!item || item.worktree.isVirtual) {
+          return;
+        }
+        vscode.env.clipboard.writeText(item.worktree.path);
+      })
+    );
 
-    disposables.push(vscode.commands.registerCommand('ygg.revealInOs', (item?: WorktreeItem) => {
-      if (!item || item.worktree.isVirtual) { return; }
-      vscode.commands.executeCommand(
-        'revealFileInOS',
-        vscode.Uri.file(item.worktree.path)
-      );
-    }));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.revealInOs', (item?: WorktreeItem) => {
+        if (!item || item.worktree.isVirtual) {
+          return;
+        }
+        vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(item.worktree.path));
+      })
+    );
 
-    disposables.push(vscode.commands.registerCommand(
-      'ygg.openDiff',
-      (item?: WorktreeFileItem) => this.openDiff(item)
-    ));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.openDiff', (item?: WorktreeFileItem) =>
+        this.openDiff(item)
+      )
+    );
 
-    disposables.push(vscode.commands.registerCommand(
-      'ygg.copyAgentResumeCommand',
-      (session: AgentSession) => {
+    disposables.push(
+      vscode.commands.registerCommand('ygg.copyAgentResumeCommand', (session: AgentSession) => {
         const text = session.resumeCommand ?? session.sessionId;
         vscode.env.clipboard.writeText(text);
         vscode.window.showInformationMessage(`Copied: ${text}`);
-      }
-    ));
+      })
+    );
 
-    disposables.push(vscode.commands.registerCommand(
-      'ygg.copyAgentSessionId',
-      (session: AgentSession) => {
+    disposables.push(
+      vscode.commands.registerCommand('ygg.copyAgentSessionId', (session: AgentSession) => {
         vscode.env.clipboard.writeText(session.sessionId);
         vscode.window.showInformationMessage(`Copied session ID: ${session.sessionId}`);
-      }
-    ));
+      })
+    );
 
-    disposables.push(vscode.commands.registerCommand(
-      'ygg.detectAgentProviders',
-      async () => this.detectAgentProviders()
-    ));
+    disposables.push(
+      vscode.commands.registerCommand('ygg.detectAgentProviders', async () =>
+        this.detectAgentProviders()
+      )
+    );
 
     return disposables;
   }
 
   private async switchWorktree(item?: WorktreeItem): Promise<void> {
-    if (!item) { return; }
+    if (!item) {
+      return;
+    }
 
     if (item.worktree.isVirtual) {
       const resp = await vscode.window.showInformationMessage(
@@ -120,7 +135,9 @@ export class CommandRegistry implements vscode.Disposable {
       mode = stored;
     } else {
       const result = await this.promptSwitchMode(item.worktree.branch, item.worktree.path);
-      if (!result) { return; }
+      if (!result) {
+        return;
+      }
       mode = result.mode;
       if (result.remember) {
         await this.context.globalState.update(SWITCH_MODE_STATE_KEY, mode);
@@ -132,17 +149,23 @@ export class CommandRegistry implements vscode.Disposable {
 
   private async selectAndSwitch(): Promise<void> {
     const all = await this.git.listWorktrees();
-    const candidates = all.filter(wt => !wt.isCurrent && wt.pathExists && !wt.isVirtual);
+    const candidates = all.filter((wt) => !wt.isCurrent && wt.pathExists && !wt.isVirtual);
     if (candidates.length === 0) {
       vscode.window.showInformationMessage('No other worktrees to switch to.');
       return;
     }
-    const picks = candidates.map(wt => ({ label: wt.branch, description: wt.path, wt }));
-    const picked = await vscode.window.showQuickPick(picks, { placeHolder: 'Select worktree to switch to' });
-    if (!picked) { return; }
+    const picks = candidates.map((wt) => ({ label: wt.branch, description: wt.path, wt }));
+    const picked = await vscode.window.showQuickPick(picks, {
+      placeHolder: 'Select worktree to switch to',
+    });
+    if (!picked) {
+      return;
+    }
 
     const result = await this.promptSwitchMode(picked.wt.branch, picked.wt.path);
-    if (!result) { return; }
+    if (!result) {
+      return;
+    }
     if (result.remember) {
       await this.context.globalState.update(SWITCH_MODE_STATE_KEY, result.mode);
       this.statusBar.showSwitchMode(result.mode);
@@ -169,25 +192,60 @@ export class CommandRegistry implements vscode.Disposable {
           break;
       }
     } catch (err: unknown) {
-      vscode.window.showErrorMessage(`Failed to open worktree: ${err instanceof Error ? err.message : String(err)}`);
+      vscode.window.showErrorMessage(
+        `Failed to open worktree: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
   private async promptSwitchMode(
     branch: string,
-    wtPath: string,
+    wtPath: string
   ): Promise<{ mode: SwitchMode; remember: boolean } | undefined> {
-    interface ModeItem extends vscode.QuickPickItem { mode: SwitchMode; remember: boolean; }
+    interface ModeItem extends vscode.QuickPickItem {
+      mode: SwitchMode;
+      remember: boolean;
+    }
 
     const once: ModeItem[] = [
-      { label: '$(window)       New Window',       description: 'Open in a new VS Code window',    mode: 'newWindow',    remember: false },
-      { label: '$(replace-all)  Replace Window',   description: 'Reuse this VS Code window',        mode: 'replace',      remember: false },
-      { label: '$(add)          Add to Workspace', description: 'Add folder to current workspace', mode: 'addWorkspace', remember: false },
+      {
+        label: '$(window)       New Window',
+        description: 'Open in a new VS Code window',
+        mode: 'newWindow',
+        remember: false,
+      },
+      {
+        label: '$(replace-all)  Replace Window',
+        description: 'Reuse this VS Code window',
+        mode: 'replace',
+        remember: false,
+      },
+      {
+        label: '$(add)          Add to Workspace',
+        description: 'Add folder to current workspace',
+        mode: 'addWorkspace',
+        remember: false,
+      },
     ];
     const remembered: ModeItem[] = [
-      { label: '$(window)       New Window',       description: 'Open in new window and save as default',     mode: 'newWindow',    remember: true },
-      { label: '$(replace-all)  Replace Window',   description: 'Replace window and save as default',          mode: 'replace',      remember: true },
-      { label: '$(add)          Add to Workspace', description: 'Add to workspace and save as default',       mode: 'addWorkspace', remember: true },
+      {
+        label: '$(window)       New Window',
+        description: 'Open in new window and save as default',
+        mode: 'newWindow',
+        remember: true,
+      },
+      {
+        label: '$(replace-all)  Replace Window',
+        description: 'Replace window and save as default',
+        mode: 'replace',
+        remember: true,
+      },
+      {
+        label: '$(add)          Add to Workspace',
+        description: 'Add to workspace and save as default',
+        mode: 'addWorkspace',
+        remember: true,
+      },
     ];
 
     const allItems: (ModeItem | vscode.QuickPickItem)[] = [
@@ -201,32 +259,51 @@ export class CommandRegistry implements vscode.Disposable {
       placeHolder: wtPath,
     });
 
-    if (!picked || !('mode' in picked)) { return undefined; }
+    if (!picked || !('mode' in picked)) {
+      return undefined;
+    }
     return { mode: picked.mode, remember: picked.remember };
   }
 
   private async addWorktree(prefillBranch?: string): Promise<void> {
-    const kind = prefillBranch ? 'Existing branch' : await vscode.window.showQuickPick(
-      ['Existing branch', 'New branch'],
-      { placeHolder: 'Choose branch type' }
-    );
-    if (!kind) { return; }
+    const kind = prefillBranch
+      ? 'Existing branch'
+      : await vscode.window.showQuickPick(['Existing branch', 'New branch'], {
+          placeHolder: 'Choose branch type',
+        });
+    if (!kind) {
+      return;
+    }
 
     const isNew = kind === 'New branch';
-    const branch = prefillBranch || await vscode.window.showInputBox({ prompt: 'Branch name' });
-    if (!branch) { return; }
+    const branch = prefillBranch || (await vscode.window.showInputBox({ prompt: 'Branch name' }));
+    if (!branch) {
+      return;
+    }
 
     const safeBranch = sanitizeBranchForPath(branch);
 
     const locations = [
       { label: 'Parent directory', detail: `../${safeBranch}`, value: `../${safeBranch}` },
-      { label: 'Nested (.worktrees)', detail: `.worktrees/${safeBranch}`, value: `.worktrees/${safeBranch}` },
-      { label: 'Agent (.agent/worktrees)', detail: `.agent/worktrees/${safeBranch}`, value: `.agent/worktrees/${safeBranch}` },
-      { label: 'Custom...', detail: 'Enter a custom path', value: 'custom' }
+      {
+        label: 'Nested (.worktrees)',
+        detail: `.worktrees/${safeBranch}`,
+        value: `.worktrees/${safeBranch}`,
+      },
+      {
+        label: 'Agent (.agent/worktrees)',
+        detail: `.agent/worktrees/${safeBranch}`,
+        value: `.agent/worktrees/${safeBranch}`,
+      },
+      { label: 'Custom...', detail: 'Enter a custom path', value: 'custom' },
     ];
 
-    const pickedLocation = await vscode.window.showQuickPick(locations, { placeHolder: 'Where to create the worktree?' });
-    if (!pickedLocation) { return; }
+    const pickedLocation = await vscode.window.showQuickPick(locations, {
+      placeHolder: 'Where to create the worktree?',
+    });
+    if (!pickedLocation) {
+      return;
+    }
 
     let wtPath: string | undefined;
     if (pickedLocation.value === 'custom') {
@@ -238,13 +315,17 @@ export class CommandRegistry implements vscode.Disposable {
       wtPath = pickedLocation.value;
     }
 
-    if (!wtPath) { return; }
+    if (!wtPath) {
+      return;
+    }
 
     try {
       await this.git.addWorktree(wtPath, branch, isNew);
       this.provider.refresh();
     } catch (err: unknown) {
-      vscode.window.showErrorMessage(`Add worktree failed: ${err instanceof Error ? err.message : String(err)}`);
+      vscode.window.showErrorMessage(
+        `Add worktree failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -254,7 +335,9 @@ export class CommandRegistry implements vscode.Disposable {
       this.provider.refresh();
       vscode.window.showInformationMessage('Missing worktrees pruned successfully.');
     } catch (err: unknown) {
-      vscode.window.showErrorMessage(`Prune failed: ${err instanceof Error ? err.message : String(err)}`);
+      vscode.window.showErrorMessage(
+        `Prune failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -263,18 +346,24 @@ export class CommandRegistry implements vscode.Disposable {
       const wtPath = item.worktree.path;
       const currentBase = this.context.workspaceState.get<string>(`ygg.baseBranch:${wtPath}`);
 
-      const options: (vscode.QuickPickItem & { branch?: string, clear?: boolean })[] = [
-        { label: '$(close) Clear (use default)', description: 'Reset to global setting or upstream', clear: true },
+      const options: (vscode.QuickPickItem & { branch?: string; clear?: boolean })[] = [
+        {
+          label: '$(close) Clear (use default)',
+          description: 'Reset to global setting or upstream',
+          clear: true,
+        },
         { label: '', kind: vscode.QuickPickItemKind.Separator },
-        { label: '$(edit) Custom...', description: 'Enter a branch name manually' }
+        { label: '$(edit) Custom...', description: 'Enter a branch name manually' },
       ];
 
       const picked = await vscode.window.showQuickPick(options, {
         title: `Set Base Branch for ${item.worktree.branch}`,
-        placeHolder: currentBase ? `Current: ${currentBase}` : 'Enter base branch name'
+        placeHolder: currentBase ? `Current: ${currentBase}` : 'Enter base branch name',
       });
 
-      if (!picked) { return; }
+      if (!picked) {
+        return;
+      }
 
       let newBase: string | undefined;
       if (picked.clear) {
@@ -282,9 +371,11 @@ export class CommandRegistry implements vscode.Disposable {
       } else {
         newBase = await vscode.window.showInputBox({
           prompt: `Enter base branch for ${item.worktree.branch}`,
-          value: currentBase || 'main'
+          value: currentBase || 'main',
         });
-        if (!newBase) { return; }
+        if (!newBase) {
+          return;
+        }
       }
 
       await this.context.workspaceState.update(`ygg.baseBranch:${wtPath}`, newBase);
@@ -297,43 +388,57 @@ export class CommandRegistry implements vscode.Disposable {
         title: 'Set Global Default Branch',
         prompt: 'Enter the branch name to use as default for this repository',
         value: currentGlobal || 'main',
-        placeHolder: 'e.g. main, develop, master'
+        placeHolder: 'e.g. main, develop, master',
       });
 
-      if (newBase === undefined) { return; }
+      if (newBase === undefined) {
+        return;
+      }
       await config.update('baseBranch', newBase, vscode.ConfigurationTarget.Workspace);
     }
     this.provider.refresh();
   }
 
   private async removeWorktree(item?: WorktreeItem): Promise<void> {
-    if (!item || item.worktree.isVirtual) { return; }
+    if (!item || item.worktree.isVirtual) {
+      return;
+    }
     const answer = await vscode.window.showWarningMessage(
       `Remove worktree '${item.worktree.branch}'?`,
       { modal: true },
       'Remove'
     );
-    if (answer !== 'Remove') { return; }
+    if (answer !== 'Remove') {
+      return;
+    }
 
     try {
       await this.git.removeWorktree(item.worktree.path);
       this.provider.refresh();
     } catch (err: unknown) {
-      vscode.window.showErrorMessage(`Remove worktree failed: ${err instanceof Error ? err.message : String(err)}`);
+      vscode.window.showErrorMessage(
+        `Remove worktree failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
   private async openDiff(item?: WorktreeFileItem): Promise<void> {
-    if (!item) { return; }
+    if (!item) {
+      return;
+    }
     const { file, worktreePath, branch, baseSha } = item;
     const baseUri = makeUri('BASE', worktreePath, file.relativePath, baseSha);
     const workUri = makeUri('WORK', worktreePath, file.relativePath);
-    const title   = `${branch} — ${file.relativePath} (branch base ↔ working tree)`;
+    const title = `${branch} — ${file.relativePath} (branch base ↔ working tree)`;
 
     try {
-      await vscode.commands.executeCommand('vscode.diff', baseUri, workUri, title, { preview: true });
+      await vscode.commands.executeCommand('vscode.diff', baseUri, workUri, title, {
+        preview: true,
+      });
     } catch (err: unknown) {
-      vscode.window.showErrorMessage(`Failed to open diff: ${err instanceof Error ? err.message : String(err)}`);
+      vscode.window.showErrorMessage(
+        `Failed to open diff: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 
@@ -359,19 +464,26 @@ export class CommandRegistry implements vscode.Disposable {
     try {
       await fsp.access(path.join(os.homedir(), '.claude', 'sessions'));
       detected.push('claude-code');
-    } catch { /* not installed */ }
+    } catch {
+      /* not installed */
+    }
 
     const desktopDir = (() => {
       switch (process.platform) {
-        case 'darwin': return path.join(os.homedir(), 'Library', 'Application Support', 'Claude');
-        case 'win32': return path.join(process.env.APPDATA ?? os.homedir(), 'Claude');
-        default: return path.join(os.homedir(), '.config', 'Claude');
+        case 'darwin':
+          return path.join(os.homedir(), 'Library', 'Application Support', 'Claude');
+        case 'win32':
+          return path.join(process.env.APPDATA ?? os.homedir(), 'Claude');
+        default:
+          return path.join(os.homedir(), '.config', 'Claude');
       }
     })();
     try {
       await fsp.access(path.join(desktopDir, 'git-worktrees.json'));
       detected.push('claude-desktop');
-    } catch { /* not installed */ }
+    } catch {
+      /* not installed */
+    }
 
     if (detected.length === 0) {
       vscode.window.showInformationMessage('No supported coding agents detected.');
@@ -379,9 +491,10 @@ export class CommandRegistry implements vscode.Disposable {
     }
     const config = vscode.workspace.getConfiguration('ygg');
     const inspected = config.inspect<string[]>('agentProviders');
-    const target = inspected?.workspaceValue !== undefined
-      ? vscode.ConfigurationTarget.Workspace
-      : vscode.ConfigurationTarget.Global;
+    const target =
+      inspected?.workspaceValue !== undefined
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
     await config.update('agentProviders', detected, target);
     vscode.window.showInformationMessage(
       `Detected agents: ${detected.join(', ')}. Updated ygg.agentProviders.`

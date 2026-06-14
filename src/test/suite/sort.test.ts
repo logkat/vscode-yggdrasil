@@ -13,7 +13,7 @@ function mockWorktree(overrides: Partial<Worktree>): Worktree {
     pathExists: true,
     locked: false,
     bare: false,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -64,13 +64,9 @@ suite('sortWorktrees', () => {
     const alphaB = mockWorktree({ branch: 'b' });
 
     const sorted = sortWorktrees([alphaB, isMain, develop, alphaA, main, virtual]);
-    assert.deepStrictEqual(sorted.map(w => w.branch), [
-      'z-virtual',
-      'main',
-      'develop',
-      'z-is-main',
-      'a',
-      'b'
-    ]);
+    assert.deepStrictEqual(
+      sorted.map((w) => w.branch),
+      ['z-virtual', 'main', 'develop', 'z-is-main', 'a', 'b']
+    );
   });
 });

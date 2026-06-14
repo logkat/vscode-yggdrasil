@@ -352,16 +352,37 @@
     "test": "node ./out/test/runTests.js",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package",
-    "publish:local": "bash scripts/publish.sh"
+    "publish:local": "bash scripts/publish.sh",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/mocha": "^10.0.6",
     "@types/node": "^25.9.3",
     "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^8.61.0",
+    "@typescript-eslint/parser": "^8.61.0",
     "@vscode/test-electron": "^3.0.0",
     "@vscode/vsce": "^3.9.2",
+    "eslint": "^10.5.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "mocha": "^11.7.6",
     "ovsx": "^1.0.1",
+    "prettier": "^3.8.4",
     "typescript": "^5.3.3"
   }
 }

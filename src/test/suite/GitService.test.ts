@@ -139,7 +139,11 @@ suite('parseStatusLine', () => {
 
   test('quoted filename with space is dequoted', () => {
     const r = parseStatusLine(' M "src/my component/Button.tsx"');
-    assert.deepStrictEqual(r, { relativePath: 'src/my component/Button.tsx', status: 'M', isUntracked: false });
+    assert.deepStrictEqual(r, {
+      relativePath: 'src/my component/Button.tsx',
+      status: 'M',
+      isUntracked: false,
+    });
   });
 
   test('quoted renamed file uses dequoted new path', () => {
@@ -154,7 +158,11 @@ suite('parseStatusLine', () => {
 
   test('quoted filename with double-quote char is dequoted', () => {
     const r = parseStatusLine(' M "src/weird\\"name.ts"');
-    assert.deepStrictEqual(r, { relativePath: 'src/weird"name.ts', status: 'M', isUntracked: false });
+    assert.deepStrictEqual(r, {
+      relativePath: 'src/weird"name.ts',
+      status: 'M',
+      isUntracked: false,
+    });
   });
 
   test('quoted filename with non-ASCII (octal UTF-8 bytes) is decoded correctly', () => {
@@ -185,10 +193,16 @@ branch refs/heads/feature/x
           return { status: 0, stdout: 'base_sha_for_main\n', stderr: '' };
         }
         // Mocking enrichment calls
-        if (args[0] === 'status') { return { status: 0, stdout: '', stderr: '' }; }
-        if (args[0] === 'rev-parse' && args[1] === '--git-dir') { return { status: 0, stdout: '.git', stderr: '' }; }
-        if (args[0] === 'rev-list') { return { status: 0, stdout: '0', stderr: '' }; }
-        
+        if (args[0] === 'status') {
+          return { status: 0, stdout: '', stderr: '' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--git-dir') {
+          return { status: 0, stdout: '.git', stderr: '' };
+        }
+        if (args[0] === 'rev-list') {
+          return { status: 0, stdout: '0', stderr: '' };
+        }
+
         return { status: 0, stdout: '', stderr: '' };
       }
     );
@@ -197,8 +211,8 @@ branch refs/heads/feature/x
 
     // Should have 2 worktrees: feature/x and virtual main
     assert.strictEqual(worktrees.length, 2);
-    
-    const virtual = worktrees.find(wt => wt.isVirtual);
+
+    const virtual = worktrees.find((wt) => wt.isVirtual);
     assert.ok(virtual, 'Should have a virtual worktree');
     assert.strictEqual(virtual?.branch, 'main');
     assert.strictEqual(virtual?.isVirtual, true);
@@ -222,9 +236,15 @@ branch refs/heads/main
         if (args[0] === 'worktree' && args[1] === 'list') {
           return { status: 0, stdout: worktreeList, stderr: '' };
         }
-        if (args[0] === 'status') { return { status: 0, stdout: '', stderr: '' }; }
-        if (args[0] === 'rev-parse' && args[1] === '--git-dir') { return { status: 0, stdout: '.git', stderr: '' }; }
-        if (args[0] === 'rev-list') { return { status: 0, stdout: '0', stderr: '' }; }
+        if (args[0] === 'status') {
+          return { status: 0, stdout: '', stderr: '' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--git-dir') {
+          return { status: 0, stdout: '.git', stderr: '' };
+        }
+        if (args[0] === 'rev-list') {
+          return { status: 0, stdout: '0', stderr: '' };
+        }
         return { status: 0, stdout: '', stderr: '' };
       }
     );
@@ -237,5 +257,3 @@ branch refs/heads/main
     assert.strictEqual(worktrees[0].isVirtual || false, false);
   });
 });
-
-

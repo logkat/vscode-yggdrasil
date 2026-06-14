@@ -5,8 +5,10 @@ const WELCOMED_KEY = 'ygg.welcomed';
 let shownInThisSession = false;
 
 export async function maybeShowWelcome(context: vscode.ExtensionContext): Promise<void> {
-  if (shownInThisSession) { return; }
-  
+  if (shownInThisSession) {
+    return;
+  }
+
   const alreadyWelcomed = context.globalState.get<boolean>(WELCOMED_KEY);
   if (!alreadyWelcomed) {
     shownInThisSession = true;
@@ -17,7 +19,7 @@ export async function maybeShowWelcome(context: vscode.ExtensionContext): Promis
 
 let activePanel: vscode.WebviewPanel | undefined;
 
-export function showWelcome(context: vscode.ExtensionContext): void {
+export function showWelcome(_context: vscode.ExtensionContext): void {
   if (activePanel) {
     return;
   }
@@ -29,7 +31,9 @@ export function showWelcome(context: vscode.ExtensionContext): void {
   );
 
   activePanel.webview.html = buildHtml(crypto.randomBytes(16).toString('base64'));
-  activePanel.onDidDispose(() => { activePanel = undefined; });
+  activePanel.onDidDispose(() => {
+    activePanel = undefined;
+  });
 }
 
 function buildHtml(nonce: string): string {

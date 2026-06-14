@@ -5,7 +5,7 @@ export class AgentSessionService {
 
   async getSessionsForWorktree(worktreePath: string): Promise<AgentSession[]> {
     const settled = await Promise.allSettled(
-      this.providers.map(p => p.getSessions(worktreePath))
+      this.providers.map((p) => p.getSessions(worktreePath))
     );
 
     const all: AgentSession[] = [];

@@ -21,18 +21,20 @@ export class WorktreeItem extends vscode.TreeItem {
   constructor(
     worktree: Worktree,
     private repoRoot: string,
-    resourceUri: vscode.Uri,
+    resourceUri: vscode.Uri
   ) {
     super(
       worktree.branch,
-      (worktree.pathExists && !worktree.bare && !worktree.isVirtual)
+      worktree.pathExists && !worktree.bare && !worktree.isVirtual
         ? vscode.TreeItemCollapsibleState.Collapsed
-        : vscode.TreeItemCollapsibleState.None,
+        : vscode.TreeItemCollapsibleState.None
     );
 
     this.worktree = worktree;
     this.resourceUri = resourceUri;
-    this.description = worktree.isVirtual ? '(not checked out)' : (path.relative(repoRoot, worktree.path) || '.');
+    this.description = worktree.isVirtual
+      ? '(not checked out)'
+      : path.relative(repoRoot, worktree.path) || '.';
     this.contextValue = WorktreeItem.contextValueFor(worktree);
     this.iconPath = WorktreeItem.iconFor(worktree);
     this.tooltip = WorktreeItem.buildTooltip(worktree);
@@ -56,14 +58,19 @@ export class WorktreeItem extends vscode.TreeItem {
     }
   }
 
-  private static buildTooltip(worktree: Worktree, sessions: AgentSession[] = []): vscode.MarkdownString {
+  private static buildTooltip(
+    worktree: Worktree,
+    sessions: AgentSession[] = []
+  ): vscode.MarkdownString {
     const md = new vscode.MarkdownString();
     md.isTrusted = true;
 
     if (worktree.isVirtual) {
       md.appendMarkdown(`### Virtual Branch: ${worktree.branch}\n\n`);
       md.appendMarkdown(`---\n\n`);
-      md.appendMarkdown(`This branch exists in the repository but is **not checked out** in any worktree.\n\n`);
+      md.appendMarkdown(
+        `This branch exists in the repository but is **not checked out** in any worktree.\n\n`
+      );
       md.appendMarkdown(`Use the switch command to create a new worktree for this branch.\n`);
       return md;
     }
@@ -83,7 +90,9 @@ export class WorktreeItem extends vscode.TreeItem {
       md.appendMarkdown(`- **Status:** $(source-control) Has uncommitted working tree changes\n`);
     }
     if (worktree.aheadCount && worktree.aheadCount > 0) {
-      md.appendMarkdown(`- **Status:** $(git-commit) Ahead of base by **${worktree.aheadCount}** commit${worktree.aheadCount === 1 ? '' : 's'}\n`);
+      md.appendMarkdown(
+        `- **Status:** $(git-commit) Ahead of base by **${worktree.aheadCount}** commit${worktree.aheadCount === 1 ? '' : 's'}\n`
+      );
     }
 
     if (sessions.length > 0) {
@@ -92,7 +101,7 @@ export class WorktreeItem extends vscode.TreeItem {
       for (const s of sessions) {
         const idShort = s.sessionId.slice(0, 8);
         const namePart = s.name ? ` — "${s.name}"` : '';
-        const statusPart = s.status ? ` *(${s.status})*` : (s.isArchived ? ' *(archived)*' : '');
+        const statusPart = s.status ? ` *(${s.status})*` : s.isArchived ? ' *(archived)*' : '';
         md.appendMarkdown(`- **${s.agentLabel}:** \`${idShort}\`${namePart}${statusPart}\n`);
       }
     }
@@ -101,9 +110,15 @@ export class WorktreeItem extends vscode.TreeItem {
   }
 
   private static contextValueFor(wt: Worktree): WorktreeContextValue {
-    if (wt.isVirtual)   { return 'worktreeItemVirtual'; }
-    if (!wt.pathExists) { return 'worktreeItemMissing'; }
-    if (wt.isCurrent)   { return 'worktreeItemCurrent'; }
+    if (wt.isVirtual) {
+      return 'worktreeItemVirtual';
+    }
+    if (!wt.pathExists) {
+      return 'worktreeItemMissing';
+    }
+    if (wt.isCurrent) {
+      return 'worktreeItemCurrent';
+    }
     return 'worktreeItem';
   }
 
@@ -138,7 +153,7 @@ export class WorktreeFolderItem extends vscode.TreeItem {
     public readonly branch: string,
     public readonly baseSha: string,
     public children: (WorktreeFolderItem | WorktreeFileItem)[],
-    resourceUri: vscode.Uri,
+    resourceUri: vscode.Uri
   ) {
     super(folderName, vscode.TreeItemCollapsibleState.Collapsed);
     this.resourceUri = resourceUri;
@@ -161,7 +176,7 @@ export class WorktreeFileItem extends vscode.TreeItem {
     public readonly worktreePath: string,
     public readonly branch: string,
     public readonly baseSha: string,
-    resourceUri: vscode.Uri,
+    resourceUri: vscode.Uri
   ) {
     super(path.basename(file.relativePath), vscode.TreeItemCollapsibleState.None);
     this.resourceUri = resourceUri;
@@ -187,16 +202,20 @@ export class WorktreeFileItem extends vscode.TreeItem {
     this.tooltip = WorktreeFileItem.buildTooltip(file, this.branch, this.baseSha);
   }
 
-  private static buildTooltip(file: FileStatus, branch: string, baseSha: string): vscode.MarkdownString {
+  private static buildTooltip(
+    file: FileStatus,
+    branch: string,
+    baseSha: string
+  ): vscode.MarkdownString {
     const statusMap: Record<string, string> = {
-      'M': 'Modified',
-      'A': 'Added',
-      'D': 'Deleted',
-      'R': 'Renamed',
-      'C': 'Copied',
-      'U': 'Unmerged (Conflict)',
-      'T': 'Type Changed',
-      '?': 'Untracked'
+      M: 'Modified',
+      A: 'Added',
+      D: 'Deleted',
+      R: 'Renamed',
+      C: 'Copied',
+      U: 'Unmerged (Conflict)',
+      T: 'Type Changed',
+      '?': 'Untracked',
     };
     const statusName = statusMap[file.status] || 'Changed';
 
@@ -204,20 +223,30 @@ export class WorktreeFileItem extends vscode.TreeItem {
     md.appendMarkdown(`### ${statusName}\n\n`);
     md.appendMarkdown(`\`${file.relativePath}\`\n\n`);
     md.appendMarkdown(`---\n\n`);
-    md.appendMarkdown(`Comparing **${branch}** version against branch base (\`${baseSha.slice(0, 7)}\`).`);
+    md.appendMarkdown(
+      `Comparing **${branch}** version against branch base (\`${baseSha.slice(0, 7)}\`).`
+    );
     return md;
   }
 
   public static iconFor(status: FileStatus['status']): vscode.ThemeIcon {
     switch (status) {
-      case 'M': return new vscode.ThemeIcon('edit', new vscode.ThemeColor('charts.blue'));
-      case 'A': return new vscode.ThemeIcon('add', new vscode.ThemeColor('testing.iconPassed'));
-      case '?': return new vscode.ThemeIcon('add'); // Untracked as base color
-      case 'D': return new vscode.ThemeIcon('trash', new vscode.ThemeColor('testing.iconFailed'));
-      case 'R': return new vscode.ThemeIcon('arrow-right', new vscode.ThemeColor('charts.blue'));
-      case 'C': return new vscode.ThemeIcon('copy', new vscode.ThemeColor('testing.iconPassed'));
-      case 'U': return new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground'));
-      case 'T': return new vscode.ThemeIcon('file-submodule', new vscode.ThemeColor('charts.blue'));
+      case 'M':
+        return new vscode.ThemeIcon('edit', new vscode.ThemeColor('charts.blue'));
+      case 'A':
+        return new vscode.ThemeIcon('add', new vscode.ThemeColor('testing.iconPassed'));
+      case '?':
+        return new vscode.ThemeIcon('add'); // Untracked as base color
+      case 'D':
+        return new vscode.ThemeIcon('trash', new vscode.ThemeColor('testing.iconFailed'));
+      case 'R':
+        return new vscode.ThemeIcon('arrow-right', new vscode.ThemeColor('charts.blue'));
+      case 'C':
+        return new vscode.ThemeIcon('copy', new vscode.ThemeColor('testing.iconPassed'));
+      case 'U':
+        return new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground'));
+      case 'T':
+        return new vscode.ThemeIcon('file-submodule', new vscode.ThemeColor('charts.blue'));
       default: {
         const _exhaustive: never = status;
         return new vscode.ThemeIcon('file');

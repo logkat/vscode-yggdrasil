@@ -27,8 +27,11 @@ suite('YggContentProvider', () => {
 
   suite('provideTextDocumentContent', () => {
     test('BASE side: returns stdout on success', async () => {
-      const run = async (_cmd: string, _args: string[], _opts: any) =>
-        ({ status: 0, stdout: 'hello world\n', stderr: '' });
+      const run = async (_cmd: string, _args: string[], _opts: any) => ({
+        status: 0,
+        stdout: 'hello world\n',
+        stderr: '',
+      });
       const provider = new YggContentProvider(run as any);
       const uri = makeUri('BASE', '/repo', 'src/index.ts', 'sha123');
       const content = await provider.provideTextDocumentContent(uri);

@@ -4,12 +4,7 @@ import { GitService } from '../git/GitService';
 import { FileStatus, Worktree } from '../git/parsers';
 import { WorktreeDecorationProvider } from './WorktreeDecorationProvider';
 import { sortWorktrees } from './sort';
-import {
-  WorktreeItem,
-  WorktreeFolderItem,
-  WorktreeFileItem,
-  WorktreeContextValue,
-} from './items';
+import { WorktreeItem, WorktreeFolderItem, WorktreeFileItem } from './items';
 import { AgentSessionService } from '../agents/AgentSessionService';
 import { AgentSession } from '../agents/IAgentProvider';
 import { AgentSessionsItem, AgentSessionItem } from './AgentSessionsItem';
@@ -18,38 +13,54 @@ import { AgentSessionsItem, AgentSessionItem } from './AgentSessionsItem';
 export { WorktreeItem, WorktreeFolderItem, WorktreeFileItem } from './items';
 export type { WorktreeContextValue } from './items';
 
-type TreeNode = WorktreeItem | WorktreeFolderItem | WorktreeFileItem | AgentSessionsItem | AgentSessionItem | vscode.TreeItem;
+type TreeNode =
+  | WorktreeItem
+  | WorktreeFolderItem
+  | WorktreeFileItem
+  | AgentSessionsItem
+  | AgentSessionItem
+  | vscode.TreeItem;
 type CachedBranchChanges = { files: FileStatus[]; baseSha: string; baseRef: string };
 
 function worktreeFieldsEqual(a: Worktree, b: Worktree): boolean {
-  return a.path === b.path
-    && a.branch === b.branch
-    && a.head === b.head
-    && a.isCurrent === b.isCurrent
-    && a.isMain === b.isMain
-    && a.isDirty === b.isDirty
-    && a.pathExists === b.pathExists
-    && a.locked === b.locked
-    && a.bare === b.bare
-    && a.aheadCount === b.aheadCount
-    && (a.isVirtual ?? false) === (b.isVirtual ?? false);
+  return (
+    a.path === b.path &&
+    a.branch === b.branch &&
+    a.head === b.head &&
+    a.isCurrent === b.isCurrent &&
+    a.isMain === b.isMain &&
+    a.isDirty === b.isDirty &&
+    a.pathExists === b.pathExists &&
+    a.locked === b.locked &&
+    a.bare === b.bare &&
+    a.aheadCount === b.aheadCount &&
+    (a.isVirtual ?? false) === (b.isVirtual ?? false)
+  );
 }
 
 function worktreeListsEqual(a: Worktree[] | undefined, b: Worktree[]): boolean {
-  if (!a || a.length !== b.length) { return false; }
+  if (!a || a.length !== b.length) {
+    return false;
+  }
   for (let i = 0; i < a.length; i++) {
-    if (!worktreeFieldsEqual(a[i], b[i])) { return false; }
+    if (!worktreeFieldsEqual(a[i], b[i])) {
+      return false;
+    }
   }
   return true;
 }
 
 function sessionsRenderEqual(a: AgentSession[], b: AgentSession[]): boolean {
-  if (a.length !== b.length) { return false; }
+  if (a.length !== b.length) {
+    return false;
+  }
   for (let i = 0; i < a.length; i++) {
-    if (a[i].sessionId !== b[i].sessionId
-      || a[i].status !== b[i].status
-      || a[i].isArchived !== b[i].isArchived
-      || a[i].name !== b[i].name) {
+    if (
+      a[i].sessionId !== b[i].sessionId ||
+      a[i].status !== b[i].status ||
+      a[i].isArchived !== b[i].isArchived ||
+      a[i].name !== b[i].name
+    ) {
       return false;
     }
   }
@@ -57,11 +68,15 @@ function sessionsRenderEqual(a: AgentSession[], b: AgentSession[]): boolean {
 }
 
 function fileStatusesEqual(a: FileStatus[], b: FileStatus[]): boolean {
-  if (a.length !== b.length) { return false; }
+  if (a.length !== b.length) {
+    return false;
+  }
   for (let i = 0; i < a.length; i++) {
-    if (a[i].relativePath !== b[i].relativePath
-      || a[i].status !== b[i].status
-      || a[i].isUntracked !== b[i].isUntracked) {
+    if (
+      a[i].relativePath !== b[i].relativePath ||
+      a[i].status !== b[i].status ||
+      a[i].isUntracked !== b[i].isUntracked
+    ) {
       return false;
     }
   }
@@ -69,7 +84,9 @@ function fileStatusesEqual(a: FileStatus[], b: FileStatus[]): boolean {
 }
 
 export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
-  private readonly _onDidChangeTreeData = new vscode.EventEmitter<TreeNode | undefined | null | void>();
+  private readonly _onDidChangeTreeData = new vscode.EventEmitter<
+    TreeNode | undefined | null | void
+  >();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private watchers: vscode.FileSystemWatcher[] = [];
@@ -89,7 +106,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   constructor(
     private readonly git: GitService,
     private readonly decorationProvider?: WorktreeDecorationProvider,
-    private readonly agentService?: AgentSessionService,
+    private readonly agentService?: AgentSessionService
   ) {}
 
   public refresh(): void {
@@ -102,7 +119,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private async triggerBackgroundRefresh(): Promise<void> {
-    if (this.isRefreshing) { return; }
+    if (this.isRefreshing) {
+      return;
+    }
     this.isRefreshing = true;
 
     try {
@@ -111,17 +130,21 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
       let sessionsChanged = false;
       if (this.agentService) {
-        await Promise.all(fresh.map(wt =>
-          this.agentService!.getSessionsForWorktree(wt.path)
-            .then(s => {
-              const prev = this.agentSessionCache.get(wt.path);
-              if (!sessionsChanged && !sessionsRenderEqual(prev ?? [], s)) {
-                sessionsChanged = true;
-              }
-              this.agentSessionCache.set(wt.path, s);
-            })
-            .catch(() => { this.agentSessionCache.set(wt.path, []); })
-        ));
+        await Promise.all(
+          fresh.map((wt) =>
+            this.agentService!.getSessionsForWorktree(wt.path)
+              .then((s) => {
+                const prev = this.agentSessionCache.get(wt.path);
+                if (!sessionsChanged && !sessionsRenderEqual(prev ?? [], s)) {
+                  sessionsChanged = true;
+                }
+                this.agentSessionCache.set(wt.path, s);
+              })
+              .catch(() => {
+                this.agentSessionCache.set(wt.path, []);
+              })
+          )
+        );
       }
 
       const changed = !worktreeListsEqual(oldWorktrees, fresh) || sessionsChanged;
@@ -141,7 +164,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   private async triggerNodeBackgroundRefresh(element: WorktreeItem): Promise<void> {
     const key = `refresh:${element.worktree.path}`;
-    if (this.refreshingNodes.has(key)) { return; }
+    if (this.refreshingNodes.has(key)) {
+      return;
+    }
     this.refreshingNodes.add(key);
 
     try {
@@ -166,11 +191,15 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   getChildren(element?: TreeNode): TreeNode[] | Thenable<TreeNode[]> {
     // Leaf nodes have no children
-    if (element instanceof AgentSessionItem) { return []; }
-    if (element instanceof AgentSessionsItem) {
-      return element.sessions.map(s => new AgentSessionItem(s));
+    if (element instanceof AgentSessionItem) {
+      return [];
     }
-    if (element instanceof WorktreeFileItem) { return []; }
+    if (element instanceof AgentSessionsItem) {
+      return element.sessions.map((s) => new AgentSessionItem(s));
+    }
+    if (element instanceof WorktreeFileItem) {
+      return [];
+    }
 
     // Expanding a folder item → return its pre-built children
     if (element instanceof WorktreeFolderItem) {
@@ -194,37 +223,66 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
       this.triggerNodeBackgroundRefresh(element);
 
       const memoized = this.treeCache.get(element.worktree.path);
-      if (memoized) { return [...agentNodes, ...memoized]; }
+      if (memoized) {
+        return [...agentNodes, ...memoized];
+      }
 
-      const result = this.renderBranchChanges(cached, element.worktree.path, element.worktree.branch);
-      this.treeCache.set(element.worktree.path, result as (WorktreeFolderItem | WorktreeFileItem)[]);
+      const result = this.renderBranchChanges(
+        cached,
+        element.worktree.path,
+        element.worktree.branch
+      );
+      this.treeCache.set(
+        element.worktree.path,
+        result as (WorktreeFolderItem | WorktreeFileItem)[]
+      );
       return [...agentNodes, ...result];
     }
 
-    return this.git.getWorktreeBranchChanges(element.worktree.path).then((fresh) => {
-      const result = this.renderBranchChanges(fresh, element.worktree.path, element.worktree.branch);
-      this.treeCache.set(element.worktree.path, result as (WorktreeFolderItem | WorktreeFileItem)[]);
-      return [...agentNodes, ...result];
-    }).catch((err) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      const errorItem = new vscode.TreeItem(`Error: ${msg}`, vscode.TreeItemCollapsibleState.None);
-      errorItem.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('list.errorForeground'));
-      errorItem.tooltip = new vscode.MarkdownString(`**Git Error:**\n\n${msg}`);
-      return [...agentNodes, errorItem];
-    });
+    return this.git
+      .getWorktreeBranchChanges(element.worktree.path)
+      .then((fresh) => {
+        const result = this.renderBranchChanges(
+          fresh,
+          element.worktree.path,
+          element.worktree.branch
+        );
+        this.treeCache.set(
+          element.worktree.path,
+          result as (WorktreeFolderItem | WorktreeFileItem)[]
+        );
+        return [...agentNodes, ...result];
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        const errorItem = new vscode.TreeItem(
+          `Error: ${msg}`,
+          vscode.TreeItemCollapsibleState.None
+        );
+        errorItem.iconPath = new vscode.ThemeIcon(
+          'error',
+          new vscode.ThemeColor('list.errorForeground')
+        );
+        errorItem.tooltip = new vscode.MarkdownString(`**Git Error:**\n\n${msg}`);
+        return [...agentNodes, errorItem];
+      });
   }
 
   private buildAgentNodes(worktreePath: string): TreeNode[] {
     const sessions = this.agentSessionCache.get(worktreePath) ?? [];
-    const showWhenEmpty = vscode.workspace.getConfiguration('ygg').get<boolean>('showAgentNodeWhenEmpty', false);
-    if (sessions.length === 0 && !showWhenEmpty) { return []; }
+    const showWhenEmpty = vscode.workspace
+      .getConfiguration('ygg')
+      .get<boolean>('showAgentNodeWhenEmpty', false);
+    if (sessions.length === 0 && !showWhenEmpty) {
+      return [];
+    }
     return [new AgentSessionsItem(sessions)];
   }
 
   private renderBranchChanges(
     changes: CachedBranchChanges,
     worktreePath: string,
-    branch: string,
+    branch: string
   ): TreeNode[] {
     if (changes.files.length === 0) {
       return [this.cleanItem(changes.baseRef, changes.baseSha)];
@@ -239,10 +297,14 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     if (cachedWorktrees && cachedRepoRoot) {
       this.triggerBackgroundRefresh();
 
-      if (this.rootCache) { return this.rootCache; }
+      if (this.rootCache) {
+        return this.rootCache;
+      }
 
       const sortedWorktrees = sortWorktrees(cachedWorktrees);
-      this.rootCache = sortedWorktrees.map((wt) => this.getOrCreateWorktreeItem(wt, cachedRepoRoot));
+      this.rootCache = sortedWorktrees.map((wt) =>
+        this.getOrCreateWorktreeItem(wt, cachedRepoRoot)
+      );
       return this.rootCache;
     }
 
@@ -257,11 +319,17 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
       this.lastError = undefined;
 
       if (this.agentService) {
-        await Promise.all(worktrees.map(wt =>
-          this.agentService!.getSessionsForWorktree(wt.path)
-            .then(s => { this.agentSessionCache.set(wt.path, s); })
-            .catch(() => { this.agentSessionCache.set(wt.path, []); })
-        ));
+        await Promise.all(
+          worktrees.map((wt) =>
+            this.agentService!.getSessionsForWorktree(wt.path)
+              .then((s) => {
+                this.agentSessionCache.set(wt.path, s);
+              })
+              .catch(() => {
+                this.agentSessionCache.set(wt.path, []);
+              })
+          )
+        );
       }
 
       if (this.git.getWorkspaceRoot()) {
@@ -280,7 +348,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   private cleanItem(baseRef: string, baseSha: string): vscode.TreeItem {
     const item = new vscode.TreeItem('No changes on branch', vscode.TreeItemCollapsibleState.None);
     item.description = `relative to ${baseRef}`;
-    item.tooltip = new vscode.MarkdownString(`This branch is up-to-date with **${baseRef}** (at \`${baseSha.slice(0, 7)}\`).`);
+    item.tooltip = new vscode.MarkdownString(
+      `This branch is up-to-date with **${baseRef}** (at \`${baseSha.slice(0, 7)}\`).`
+    );
     item.iconPath = new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'));
     return item;
   }
@@ -288,7 +358,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   private makeWorktreeUri(wtPath: string, branch: string): vscode.Uri {
     // Opaque URI format: ygg-worktree:branch:<branch>?path=<path>
     // This is the most stable URI format for decorations during selection.
-    return vscode.Uri.parse(`ygg-worktree:branch:${encodeURIComponent(branch)}?path=${encodeURIComponent(wtPath)}`);
+    return vscode.Uri.parse(
+      `ygg-worktree:branch:${encodeURIComponent(branch)}?path=${encodeURIComponent(wtPath)}`
+    );
   }
 
   private getOrCreateWorktreeItem(wt: Worktree, repoRoot: string): WorktreeItem {
@@ -299,17 +371,27 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     if (existing instanceof WorktreeItem) {
       existing.updateFrom(wt, repoRoot, newUri);
       const existingSessions = this.agentSessionCache.get(wt.path);
-      if (existingSessions !== undefined) { existing.updateSessions(existingSessions); }
+      if (existingSessions !== undefined) {
+        existing.updateSessions(existingSessions);
+      }
       return existing;
     }
     const item = new WorktreeItem(wt, repoRoot, newUri);
     const newSessions = this.agentSessionCache.get(wt.path);
-    if (newSessions !== undefined) { item.updateSessions(newSessions); }
+    if (newSessions !== undefined) {
+      item.updateSessions(newSessions);
+    }
     this.instanceCache.set(id, item);
     return item;
   }
 
-  private getOrCreateFolderItem(name: string, folderPath: string, wtPath: string, branch: string, baseSha: string): WorktreeFolderItem {
+  private getOrCreateFolderItem(
+    name: string,
+    folderPath: string,
+    wtPath: string,
+    branch: string,
+    baseSha: string
+  ): WorktreeFolderItem {
     const id = path.join(wtPath, folderPath);
     const existing = this.instanceCache.get(id);
     const newUri = this.makeWorktreeUri(path.join(wtPath, folderPath), branch);
@@ -323,7 +405,12 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     return item;
   }
 
-  private getOrCreateFileItem(file: FileStatus, wtPath: string, branch: string, baseSha: string): WorktreeFileItem {
+  private getOrCreateFileItem(
+    file: FileStatus,
+    wtPath: string,
+    branch: string,
+    baseSha: string
+  ): WorktreeFileItem {
     const id = path.join(wtPath, file.relativePath);
     const existing = this.instanceCache.get(id);
     if (existing instanceof WorktreeFileItem) {
@@ -349,7 +436,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const sortedFiles = [...files].sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
     for (const file of sortedFiles) {
-      const parts = file.relativePath.split(/[\\\/]/);
+      const parts = file.relativePath.split(/[/\\]/);
       let currentPath = '';
       let currentChildren = rootNodes;
 
@@ -359,7 +446,13 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
         let folderItem = folders.get(currentPath);
         if (!folderItem) {
-          folderItem = this.getOrCreateFolderItem(folderName, currentPath, worktreePath, branch, baseSha);
+          folderItem = this.getOrCreateFolderItem(
+            folderName,
+            currentPath,
+            worktreePath,
+            branch,
+            baseSha
+          );
           currentChildren.push(folderItem);
           folders.set(currentPath, folderItem);
         }
@@ -374,8 +467,12 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
       nodes.sort((a, b) => {
         const aIsFolder = a instanceof WorktreeFolderItem;
         const bIsFolder = b instanceof WorktreeFolderItem;
-        if (aIsFolder && !bIsFolder) { return -1; }
-        if (!aIsFolder && bIsFolder) { return 1; }
+        if (aIsFolder && !bIsFolder) {
+          return -1;
+        }
+        if (!aIsFolder && bIsFolder) {
+          return 1;
+        }
         return a.label!.toString().localeCompare(b.label!.toString());
       });
       for (const node of nodes) {
@@ -417,7 +514,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
    * and go.
    */
   private pruneInstanceCacheForWorktrees(fresh: Worktree[]): void {
-    const liveWorktreePaths = new Set(fresh.map(wt => wt.path));
+    const liveWorktreePaths = new Set(fresh.map((wt) => wt.path));
     for (const key of this.instanceCache.keys()) {
       const item = this.instanceCache.get(key);
       if (item instanceof WorktreeItem) {
@@ -444,7 +541,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
     let debounceTimer: NodeJS.Timeout | undefined;
     const refresh = (): void => {
-      if (debounceTimer) { clearTimeout(debounceTimer); }
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
       debounceTimer = setTimeout(() => {
         this.git.invalidateCache();
         this.triggerBackgroundRefresh();
@@ -469,7 +568,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
     // 2. Watch individual worktrees for branch switches (HEAD changes)
     for (const wt of worktrees) {
-      if (!wt.pathExists || wt.bare || wt.isCurrent) { continue; }
+      if (!wt.pathExists || wt.bare || wt.isCurrent) {
+        continue;
+      }
 
       const wtBase = vscode.Uri.file(wt.path);
       const wtHeadWatcher = vscode.workspace.createFileSystemWatcher(
@@ -485,7 +586,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private disposeWatchers(): void {
-    for (const w of this.watchers) { w.dispose(); }
+    for (const w of this.watchers) {
+      w.dispose();
+    }
     this.watchers = [];
   }
 }

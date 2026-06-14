@@ -7,7 +7,7 @@ suite('extension — command registration', () => {
     // Instead, verify the extension activated successfully (the treeView exists)
     // and that ygg.openDiff is registered.
     const registered = vscode.commands.getCommands(true);
-    return registered.then(cmds => {
+    return registered.then((cmds) => {
       assert.ok(cmds.includes('ygg.openDiff'), 'ygg.openDiff should be registered');
     });
   });
