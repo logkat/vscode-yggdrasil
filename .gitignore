@@ -7,3 +7,4 @@ out/
 .remember/
 docs/superpowers/
 .claude/
+.worktrees/
