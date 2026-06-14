@@ -359,7 +359,7 @@
     "@types/node": "^25.9.3",
     "@types/vscode": "^1.74.0",
     "@vscode/test-electron": "^3.0.0",
-    "@vscode/vsce": "^3.9.1",
+    "@vscode/vsce": "^3.9.2",
     "mocha": "^10.3.0",
     "ovsx": "^1.0.1",
     "typescript": "^5.3.3"
