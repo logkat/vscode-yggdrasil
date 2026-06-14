@@ -2,7 +2,7 @@
   "name": "git-yggdrasil",
   "displayName": "Yggdrasil Git Worktrees",
   "description": "Explore and switch git worktrees from the VS Code sidebar",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "LogKat",
   "license": "MIT",
   "icon": "./images/icon.png",
