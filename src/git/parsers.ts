@@ -43,17 +43,9 @@ export function dequotePath(raw: string): string {
         result += Buffer.from(bytes).toString('utf8');
         bytes.length = 0;
       }
-      if (next === 'n') {
-        result += '\n';
-        i += 2;
-      } else if (next === 't') {
-        result += '\t';
-        i += 2;
-      } else if (next === '"') {
-        result += '"';
-        i += 2;
-      } else if (next === '\\') {
-        result += '\\';
+      const escapes: Record<string, string> = { n: '\n', t: '\t', '"': '"', '\\': '\\' };
+      if (next in escapes) {
+        result += escapes[next];
         i += 2;
       } else {
         result += inner[i];
