@@ -5,7 +5,9 @@ import { GitService } from '../../git/GitService';
 import { WorktreeProvider } from '../../tree/WorktreeProvider';
 import { WorktreeItem } from '../../tree/WorktreeProvider';
 
-function makeGlobalState(initial: Record<string, unknown> = {}): vscode.Memento & { update: (k: string, v: unknown) => Thenable<void> } {
+function makeGlobalState(
+  initial: Record<string, unknown> = {}
+): vscode.Memento & { update: (k: string, v: unknown) => Thenable<void> } {
   const store = new Map<string, unknown>(Object.entries(initial));
   return {
     keys: () => [...store.keys()],
@@ -13,8 +15,11 @@ function makeGlobalState(initial: Record<string, unknown> = {}): vscode.Memento 
       return (store.has(key) ? store.get(key) : defaultValue) as T;
     },
     update(key: string, value: unknown): Thenable<void> {
-      if (value === undefined) { store.delete(key); }
-      else { store.set(key, value); }
+      if (value === undefined) {
+        store.delete(key);
+      } else {
+        store.set(key, value);
+      }
       return Promise.resolve();
     },
   };
@@ -27,7 +32,9 @@ function makeMockContext(globalStateValues: Record<string, unknown> = {}): vscod
   } as unknown as vscode.ExtensionContext;
 }
 
-function makeMockGit(worktrees: Partial<import('../../git/GitService').Worktree>[] = []): GitService {
+function makeMockGit(
+  worktrees: Partial<import('../../git/GitService').Worktree>[] = []
+): GitService {
   return {
     getRepoRoot: async () => '/repo',
     listWorktrees: async () => worktrees,
@@ -56,8 +63,7 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
   } as unknown as WorktreeItem;
 }
 
-  suite('CommandRegistry', () => {
-  let registry: CommandRegistry | undefined;
+suite('CommandRegistry', () => {
   let disposables: vscode.Disposable[] = [];
 
   setup(() => {
@@ -67,26 +73,16 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
   });
 
   teardown(() => {
-    disposables.forEach(d => d.dispose());
+    disposables.forEach((d) => d.dispose());
     disposables = [];
   });
 
-  function getRegistry(ctx = makeMockContext(), git = makeMockGit(), provider = makeMockProvider()): CommandRegistry {
-    // Instead of registering again, we just return a new instance if needed, 
-    // but the commands are already bound to the first instance.
-    // This is a limitation of testing in a real VS Code host.
-    // For these tests, we'll try to use the registry instance to call methods directly 
-    // or rely on the fact that they call the same methods.
-    return new CommandRegistry(ctx, git, provider);
-  }
-
   suite('ygg.switch — inline button, no dialog', () => {
-
     test('uses stored newWindow preference directly', async () => {
       const ctx = makeMockContext({ 'ygg.switchMode': 'newWindow' });
       const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
       // Directly call the private method via any
-      
+
       let openedOptions: any;
       const originalExecute = vscode.commands.executeCommand;
       (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
@@ -116,7 +112,10 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
 
       let openCalled = false;
       (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
-        if (cmd === 'vscode.openFolder') { openCalled = true; return; }
+        if (cmd === 'vscode.openFolder') {
+          openCalled = true;
+          return;
+        }
         return originalExecute(cmd, ...args);
       };
 
@@ -157,7 +156,10 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
 
       let updateCalled = false;
       const originalUpdate = vscode.workspace.updateWorkspaceFolders;
-      (vscode.workspace as any).updateWorkspaceFolders = () => { updateCalled = true; return true; };
+      (vscode.workspace as any).updateWorkspaceFolders = () => {
+        updateCalled = true;
+        return true;
+      };
 
       try {
         await (reg as any).switchWorktree(makeWorktreeItem());
@@ -174,7 +176,10 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
       let openCalled = false;
       const originalExecute = vscode.commands.executeCommand;
       (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
-        if (cmd === 'vscode.openFolder') { openCalled = true; return; }
+        if (cmd === 'vscode.openFolder') {
+          openCalled = true;
+          return;
+        }
         return originalExecute(cmd, ...args);
       };
 
@@ -190,12 +195,26 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
   suite('ygg.selectAndSwitch — palette picker', () => {
     test('shows informationMessage when no switchable worktrees exist', async () => {
       const ctx = makeMockContext();
-      const allCurrent = [{ path: '/repo', branch: 'main', isCurrent: true, pathExists: true, head: '', isDirty: false, locked: false, bare: false }];
+      const allCurrent = [
+        {
+          path: '/repo',
+          branch: 'main',
+          isCurrent: true,
+          pathExists: true,
+          head: '',
+          isDirty: false,
+          locked: false,
+          bare: false,
+        },
+      ];
       const reg = new CommandRegistry(ctx, makeMockGit(allCurrent), makeMockProvider());
 
       let infoShown = false;
       const originalInfo = vscode.window.showInformationMessage;
-      (vscode.window as any).showInformationMessage = async () => { infoShown = true; return undefined; };
+      (vscode.window as any).showInformationMessage = async () => {
+        infoShown = true;
+        return undefined;
+      };
 
       try {
         await (reg as any).selectAndSwitch();
@@ -210,7 +229,10 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
       let listCalled = false;
       const git = {
         ...makeMockGit(),
-        listWorktrees: async () => { listCalled = true; return []; },
+        listWorktrees: async () => {
+          listCalled = true;
+          return [];
+        },
       } as unknown as GitService;
       const reg = new CommandRegistry(ctx, git, makeMockProvider());
 
@@ -232,7 +254,9 @@ function makeWorktreeItem(branch = 'feature/test', wtPath = '/repo/feature'): Wo
       let removeCalled = false;
       const git = {
         ...makeMockGit(),
-        removeWorktree: async () => { removeCalled = true; },
+        removeWorktree: async () => {
+          removeCalled = true;
+        },
       } as unknown as GitService;
       const reg = new CommandRegistry(ctx, git, makeMockProvider());
 

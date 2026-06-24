@@ -21,7 +21,7 @@ export class StatusBarManager implements vscode.Disposable {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly git: GitService,
+    private readonly git: GitService
   ) {}
 
   /**
@@ -31,10 +31,7 @@ export class StatusBarManager implements vscode.Disposable {
   initialize(): vscode.Disposable[] {
     const disposables: vscode.Disposable[] = [];
 
-    this.worktreeItem = vscode.window.createStatusBarItem(
-      vscode.StatusBarAlignment.Left,
-      100,
-    );
+    this.worktreeItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     this.worktreeItem.command = 'ygg.selectAndSwitch';
     this.worktreeItem.tooltip = 'Switch Worktree';
     disposables.push(this.worktreeItem);
@@ -42,7 +39,9 @@ export class StatusBarManager implements vscode.Disposable {
     const pinned = this.context.globalState.get<SwitchMode>(SWITCH_MODE_STATE_KEY);
     if (pinned) {
       this.showSwitchMode(pinned);
-      if (this.switchModeItem) { disposables.push(this.switchModeItem); }
+      if (this.switchModeItem) {
+        disposables.push(this.switchModeItem);
+      }
     }
 
     return disposables;
@@ -65,10 +64,12 @@ export class StatusBarManager implements vscode.Disposable {
   }
 
   async refreshWorktreeName(): Promise<void> {
-    if (!this.worktreeItem) { return; }
+    if (!this.worktreeItem) {
+      return;
+    }
     try {
-      const worktrees = this.git.getCachedWorktrees() ?? await this.git.listWorktrees();
-      const current = worktrees.find(wt => wt.isCurrent);
+      const worktrees = this.git.getCachedWorktrees() ?? (await this.git.listWorktrees());
+      const current = worktrees.find((wt) => wt.isCurrent);
       if (current) {
         this.worktreeItem.text = `$(file-submodule) ${current.branch}`;
         this.worktreeItem.show();

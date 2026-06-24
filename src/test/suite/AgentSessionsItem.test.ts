@@ -29,7 +29,7 @@ suite('AgentSessionsItem', () => {
   test('collapsibleState is Collapsed', () => {
     assert.strictEqual(
       new AgentSessionsItem([sess()]).collapsibleState,
-      vscode.TreeItemCollapsibleState.Collapsed,
+      vscode.TreeItemCollapsibleState.Collapsed
     );
   });
 });
@@ -41,7 +41,9 @@ suite('AgentSessionItem', () => {
   });
 
   test('label is agentLabel only when status absent', () => {
-    const item = new AgentSessionItem(sess({ agent: 'claude-desktop', agentLabel: 'Claude Desktop' }));
+    const item = new AgentSessionItem(
+      sess({ agent: 'claude-desktop', agentLabel: 'Claude Desktop' })
+    );
     assert.strictEqual(item.label, 'Claude Desktop');
   });
 
@@ -68,11 +70,16 @@ suite('AgentSessionItem', () => {
   test('command is ygg.copyAgentResumeCommand when resumeCommand present', () => {
     const item = new AgentSessionItem(sess({ resumeCommand: 'claude --resume abc123de' }));
     assert.strictEqual(item.command?.command, 'ygg.copyAgentResumeCommand');
-    assert.deepStrictEqual(item.command?.arguments?.[0].sessionId, 'abc123de-0000-0000-0000-000000000000');
+    assert.deepStrictEqual(
+      item.command?.arguments?.[0].sessionId,
+      'abc123de-0000-0000-0000-000000000000'
+    );
   });
 
   test('command is ygg.copyAgentSessionId when no resumeCommand', () => {
-    const item = new AgentSessionItem(sess({ agent: 'claude-desktop', agentLabel: 'Claude Desktop' }));
+    const item = new AgentSessionItem(
+      sess({ agent: 'claude-desktop', agentLabel: 'Claude Desktop' })
+    );
     assert.strictEqual(item.command?.command, 'ygg.copyAgentSessionId');
   });
 
@@ -97,7 +104,9 @@ suite('AgentSessionItem', () => {
   });
 
   test('icon is $(archive) when isArchived', () => {
-    const item = new AgentSessionItem(sess({ agent: 'claude-desktop', agentLabel: 'Claude Desktop', isArchived: true }));
+    const item = new AgentSessionItem(
+      sess({ agent: 'claude-desktop', agentLabel: 'Claude Desktop', isArchived: true })
+    );
     assert.strictEqual((item.iconPath as vscode.ThemeIcon).id, 'archive');
   });
 });

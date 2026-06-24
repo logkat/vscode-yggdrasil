@@ -12,7 +12,11 @@ export class AgentSessionsItem extends vscode.TreeItem {
 
 export class AgentSessionItem extends vscode.TreeItem {
   constructor(public readonly session: AgentSession) {
-    const statusPart = session.status ? ` · ${session.status}` : (session.isArchived ? ' · archived' : '');
+    const statusPart = session.status
+      ? ` · ${session.status}`
+      : session.isArchived
+        ? ' · archived'
+        : '';
     super(`${session.agentLabel}${statusPart}`, vscode.TreeItemCollapsibleState.None);
 
     const idShort = session.sessionId.slice(0, 8);

@@ -18,22 +18,27 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       () => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
       (worktreePath?: string) => {
         if (worktreePath) {
-          const perWorktreeBase = context.workspaceState.get<string>(`ygg.baseBranch:${worktreePath}`);
-          if (perWorktreeBase) { return perWorktreeBase; }
+          const perWorktreeBase = context.workspaceState.get<string>(
+            `ygg.baseBranch:${worktreePath}`
+          );
+          if (perWorktreeBase) {
+            return perWorktreeBase;
+          }
         }
         return vscode.workspace.getConfiguration('ygg').get<string>('baseBranch') || undefined;
-      },
+      }
     );
 
     const decorationProvider = new WorktreeDecorationProvider(git);
 
-    const agentProviderIds = vscode.workspace.getConfiguration('ygg')
+    const agentProviderIds = vscode.workspace
+      .getConfiguration('ygg')
       .get<string[]>('agentProviders', ['claude-code', 'claude-desktop']);
 
     const builtinProviders = [new ClaudeCodeProvider(), new ClaudeDesktopProvider()];
-    const byId = new Map(builtinProviders.map(p => [p.id, p]));
+    const byId = new Map(builtinProviders.map((p) => [p.id, p]));
     const activeProviders = agentProviderIds
-      .map(id => byId.get(id))
+      .map((id) => byId.get(id))
       .filter((p): p is (typeof builtinProviders)[number] => p !== undefined);
     const agentService = new AgentSessionService(activeProviders);
 
@@ -58,7 +63,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       contentProvider
     );
 
-    const welcomeCommand = vscode.commands.registerCommand('ygg.welcome', () => showWelcome(context));
+    const welcomeCommand = vscode.commands.registerCommand('ygg.welcome', () =>
+      showWelcome(context)
+    );
 
     context.subscriptions.push(
       vscode.window.registerFileDecorationProvider(decorationProvider),
@@ -68,7 +75,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       contentProviderDisposable,
       ...commands,
       provider,
-      registry,
+      registry
     );
 
     await maybeShowWelcome(context);

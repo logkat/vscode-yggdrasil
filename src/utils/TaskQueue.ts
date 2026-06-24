@@ -6,7 +6,7 @@ export class TaskQueue {
 
   async run<T>(task: () => Promise<T>): Promise<T> {
     if (this.active >= this.maxConcurrency) {
-      await new Promise<void>(resolve => this.waiting.push(resolve));
+      await new Promise<void>((resolve) => this.waiting.push(resolve));
     }
 
     this.active++;

@@ -6,7 +6,11 @@ suite('GitService Improvements', () => {
     const realPath = process.cwd();
     const mockRun = async (cmd: string, args: string[]) => {
       if (args.includes('list')) {
-        return { stdout: `worktree ${realPath}\nHEAD abc\nbranch refs/heads/main\n\n`, stderr: '', status: 0 };
+        return {
+          stdout: `worktree ${realPath}\nHEAD abc\nbranch refs/heads/main\n\n`,
+          stderr: '',
+          status: 0,
+        };
       }
       if (args.includes('rev-parse') && args.includes('--show-toplevel')) {
         return { stdout: realPath, stderr: '', status: 0 };

@@ -38,21 +38,26 @@ export class ClaudeDesktopProvider implements IAgentProvider {
 
   constructor(
     private readonly desktopDir: string = getClaudeDesktopDir(),
-    private readonly readFile: (p: string) => Promise<string> = (p) => fs.promises.readFile(p, 'utf8'),
-    private readonly readdir: (p: string) => Promise<string[]> = (p) => fs.promises.readdir(p),
+    private readonly readFile: (p: string) => Promise<string> = (p) =>
+      fs.promises.readFile(p, 'utf8'),
+    private readonly readdir: (p: string) => Promise<string[]> = (p) => fs.promises.readdir(p)
   ) {}
 
   async getSessions(worktreePath: string): Promise<AgentSession[]> {
     let worktreesData: GitWorktreesJson;
     try {
-      worktreesData = JSON.parse(await this.readFile(path.join(this.desktopDir, 'git-worktrees.json')));
+      worktreesData = JSON.parse(
+        await this.readFile(path.join(this.desktopDir, 'git-worktrees.json'))
+      );
     } catch {
       return [];
     }
 
     const results: AgentSession[] = [];
     for (const wt of Object.values(worktreesData.worktrees ?? {})) {
-      if (wt.path !== worktreePath || !wt.leasedBy) { continue; }
+      if (wt.path !== worktreePath || !wt.leasedBy) {
+        continue;
+      }
 
       const session: AgentSession = {
         agent: 'claude-desktop',
@@ -92,7 +97,9 @@ export class ClaudeDesktopProvider implements IAgentProvider {
       }
       for (const cliId of cliIds) {
         try {
-          const raw = await this.readFile(path.join(sessionsBase, desktopId, cliId, `${leasedBy}.json`));
+          const raw = await this.readFile(
+            path.join(sessionsBase, desktopId, cliId, `${leasedBy}.json`)
+          );
           return JSON.parse(raw) as DesktopSessionJson;
         } catch {
           // not in this dir

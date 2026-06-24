@@ -55,8 +55,11 @@ suite('AgentSessionService', () => {
 
   test('handles provider errors gracefully, returns other provider sessions', async () => {
     const failing: IAgentProvider = {
-      id: 'fail', label: 'Fail',
-      getSessions: async () => { throw new Error('network'); },
+      id: 'fail',
+      label: 'Fail',
+      getSessions: async () => {
+        throw new Error('network');
+      },
     };
     const svc = new AgentSessionService([failing, fakeProvider('ok', [makeSession('ok-id', 1)])]);
     const result = await svc.getSessionsForWorktree('/wt');
