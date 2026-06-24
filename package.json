@@ -383,6 +383,6 @@
     "mocha": "^11.7.6",
     "ovsx": "^1.0.1",
     "prettier": "^3.8.4",
-    "typescript": "^5.3.3"
+    "typescript": "^6.0.3"
   }
 }
