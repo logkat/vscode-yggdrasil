@@ -127,6 +127,36 @@ suite('WorktreeDecorationProvider', () => {
     );
   });
 
+  test('windows: subtree shares worktree color despite mixed separators', () => {
+    // Worktree.path comes from `git worktree list --porcelain`, which always uses
+    // forward slashes even on win32; item paths are built with path.join, which
+    // uses backslashes on win32. Both must normalize to the same color.
+    const wt = mockWorktree({ path: 'C:/repo/wt', branch: 'wt' });
+    const git = { getCachedWorktrees: () => [wt] } as any;
+    const provider = new WorktreeDecorationProvider(git, () => true);
+
+    const wtUri = vscode.Uri.parse(`ygg-worktree://wt?path=${encodeURIComponent('C:/repo/wt')}`);
+    const fileUri = vscode.Uri.parse(
+      `ygg-worktree://wt?path=${encodeURIComponent('C:\\repo\\wt\\src\\file.ts')}`
+    );
+
+    const wtColor = (provider.provideFileDecoration(wtUri, {} as any) as any).color.id;
+    const fileColor = (provider.provideFileDecoration(fileUri, {} as any) as any).color.id;
+    assert.strictEqual(wtColor, fileColor);
+  });
+
+  test('windows: backslash item path resolves to current worktree color', () => {
+    const current = mockWorktree({ path: 'C:/repo/current', isCurrent: true });
+    const git = { getCachedWorktrees: () => [current] } as any;
+    const provider = new WorktreeDecorationProvider(git, () => true);
+
+    const fileUri = vscode.Uri.parse(
+      `ygg-worktree://current?path=${encodeURIComponent('C:\\repo\\current\\src\\file.ts')}`
+    );
+    const decoration = provider.provideFileDecoration(fileUri, {} as any) as any;
+    assert.strictEqual(decoration.color.id, 'ygg.worktreeColor.current');
+  });
+
   test('the cached flag is not re-read per call', () => {
     const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
     const git = { getCachedWorktrees: () => [wt] } as any;

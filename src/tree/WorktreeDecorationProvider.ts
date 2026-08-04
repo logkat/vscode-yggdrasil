@@ -18,6 +18,14 @@ const CURRENT_COLOR = 'ygg.worktreeColor.current';
 // `list.foreground` is not a registered VS Code color id; `foreground` is.
 const BASE_COLOR = 'foreground';
 
+// Worktree.path comes verbatim from `git worktree list --porcelain`, which always
+// emits forward slashes (even on win32), while item paths are built with
+// `path.join` in WorktreeProvider and therefore use platform separators. Normalize
+// both sides to forward slashes before comparing so ownership matches on Windows.
+function toComparablePath(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
 export function readWorktreeColorsSetting(): boolean {
   return vscode.workspace.getConfiguration('ygg').get<boolean>('worktreeColors', false);
 }
@@ -73,8 +81,15 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
     let colorId: string;
     if (worktrees && itemPath) {
       // Find the owning worktree by longest prefix match
+      const comparableItemPath = toComparablePath(itemPath);
       const owner = worktrees
-        .filter((w) => itemPath === w.path || itemPath.startsWith(w.path + '/'))
+        .filter((w) => {
+          const comparableWorktreePath = toComparablePath(w.path);
+          return (
+            comparableItemPath === comparableWorktreePath ||
+            comparableItemPath.startsWith(comparableWorktreePath + '/')
+          );
+        })
         .sort((a, b) => b.path.length - a.path.length)[0];
 
       const { basePath, currentPath } = this.resolveBaseAndCurrent(worktrees);
