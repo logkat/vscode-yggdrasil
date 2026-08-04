@@ -15,7 +15,8 @@ const POOL = [
   'ygg.worktreeColor.9',
 ];
 const CURRENT_COLOR = 'ygg.worktreeColor.current';
-const BASE_COLOR = 'list.foreground';
+// `list.foreground` is not a registered VS Code color id; `foreground` is.
+const BASE_COLOR = 'foreground';
 
 export function readWorktreeColorsSetting(): boolean {
   return vscode.workspace.getConfiguration('ygg').get<boolean>('worktreeColors', false);

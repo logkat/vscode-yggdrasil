@@ -35,7 +35,7 @@ suite('WorktreeDecorationProvider', () => {
 
     assert.strictEqual(colorsUsed.size, poolSize, 'Should have used all 9 colors');
     assert.ok(!colorsUsed.has('ygg.worktreeColor.current'), 'Green should not be in random pool');
-    assert.ok(!colorsUsed.has('list.foreground'), 'Base color should not be in random pool');
+    assert.ok(!colorsUsed.has('foreground'), 'Base color should not be in random pool');
   });
 
   test('stability: same path returns same color', () => {
@@ -58,7 +58,7 @@ suite('WorktreeDecorationProvider', () => {
     assert.strictEqual(decoration.color.id, 'ygg.worktreeColor.current');
   });
 
-  test('base worktree → list.foreground', () => {
+  test('base worktree → foreground', () => {
     // base is the first one after sorting. sortWorktrees uses main/develop/master order.
     const main = mockWorktree({ path: '/repo/main', branch: 'main' });
     const feat = mockWorktree({ path: '/repo/feat', branch: 'feat' });
@@ -67,7 +67,7 @@ suite('WorktreeDecorationProvider', () => {
 
     const uri = vscode.Uri.parse('ygg-worktree://worktree?path=%2Frepo%2Fmain&branch=main');
     const decoration = provider.provideFileDecoration(uri, {} as any) as any;
-    assert.strictEqual(decoration.color.id, 'list.foreground');
+    assert.strictEqual(decoration.color.id, 'foreground');
   });
 
   test('current wins over base when a path is both', () => {
