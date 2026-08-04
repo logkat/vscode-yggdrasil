@@ -17,6 +17,10 @@ const POOL = [
 const CURRENT_COLOR = 'ygg.worktreeColor.current';
 const BASE_COLOR = 'list.foreground';
 
+export function readWorktreeColorsSetting(): boolean {
+  return vscode.workspace.getConfiguration('ygg').get<boolean>('worktreeColors', false);
+}
+
 export class WorktreeDecorationProvider implements vscode.FileDecorationProvider {
   private readonly _onDidChangeFileDecorations = new vscode.EventEmitter<
     vscode.Uri | vscode.Uri[] | undefined
@@ -28,8 +32,12 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
 
   private basePath?: string;
   private currentPath?: string;
+  private colorsEnabled?: boolean;
 
-  constructor(private readonly git: GitService) {}
+  constructor(
+    private readonly git: GitService,
+    private readonly readColorsEnabled: () => boolean = readWorktreeColorsSetting
+  ) {}
 
   provideFileDecoration(
     uri: vscode.Uri,
@@ -51,6 +59,10 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
     }
 
     if (!branch) {
+      return undefined;
+    }
+
+    if (!this.colorsOn()) {
       return undefined;
     }
 
@@ -92,6 +104,13 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
     return { basePath: this.basePath, currentPath: this.currentPath };
   }
 
+  private colorsOn(): boolean {
+    if (this.colorsEnabled === undefined) {
+      this.colorsEnabled = this.readColorsEnabled();
+    }
+    return this.colorsEnabled;
+  }
+
   private getRandomColorForWorktree(wtPath: string): string {
     const existing = this.assignments.get(wtPath);
     if (existing) {
@@ -118,6 +137,7 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
   public refresh(uri?: vscode.Uri | vscode.Uri[]): void {
     this.basePath = undefined;
     this.currentPath = undefined;
+    this.colorsEnabled = undefined;
     this._onDidChangeFileDecorations.fire(uri);
   }
 }

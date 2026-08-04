@@ -73,6 +73,11 @@
           "type": "boolean",
           "default": false,
           "description": "Show the Agent Sessions child node even when no sessions are detected for a worktree."
+        },
+        "ygg.worktreeColors": {
+          "type": "boolean",
+          "default": false,
+          "description": "Colour each worktree's rows, and the files and folders inside it, with a distinct colour."
         }
       }
     },
