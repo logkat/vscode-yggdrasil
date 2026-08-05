@@ -176,6 +176,28 @@ export class GitService {
     return freshWorktrees;
   }
 
+  /**
+   * Local branch names, most recently committed first — the order a "pick a base
+   * branch" list wants, since the branch you just worked on is the likely answer.
+   * Returns [] rather than throwing: a picker with no suggestions is still usable
+   * because it falls back to free text.
+   */
+  public async listBranches(): Promise<string[]> {
+    const repoRoot = await this.getRepoRoot();
+    const res = await this.run(
+      'git',
+      ['for-each-ref', '--format=%(refname:short)', '--sort=-committerdate', 'refs/heads'],
+      { cwd: repoRoot }
+    );
+    if (res.status !== 0) {
+      return [];
+    }
+    return res.stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
   public async getDefaultBranch(): Promise<string> {
     const repoRoot = await this.getRepoRoot();
 
@@ -276,7 +298,12 @@ export class GitService {
     const [diffResult, cachedResult, statusResult] = await Promise.all([
       this.run('git', ['diff', '--name-status', baseSha], { cwd: worktreePath }),
       this.run('git', ['diff', '--name-status', '--cached', baseSha], { cwd: worktreePath }),
-      this.run('git', ['status', '--porcelain'], { cwd: worktreePath }),
+      // `--untracked-files=all` matters: the default collapses a wholly
+      // untracked directory to a single `?? src/` entry, which the tree builder
+      // then split into a folder plus a phantom leaf named after the folder
+      // (`src` containing `src`). Listing untracked files individually gives the
+      // tree real leaves to nest.
+      this.run('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: worktreePath }),
     ]);
 
     const committed = parseDiffNameStatus(diffResult.status === 0 ? diffResult.stdout : '');

@@ -11,4 +11,17 @@ suite('extension — command registration', () => {
       assert.ok(cmds.includes('ygg.openDiff'), 'ygg.openDiff should be registered');
     });
   });
+
+  test('every command in package.json is actually registered', async () => {
+    // A contributed command that nothing registers still shows in the palette
+    // and fails with "command not found" when picked.
+    const manifest = require('../../../package.json');
+    const contributed: string[] = manifest.contributes.commands.map(
+      (c: { command: string }) => c.command
+    );
+    const registered = await vscode.commands.getCommands(true);
+
+    const missing = contributed.filter((c) => !registered.includes(c));
+    assert.deepStrictEqual(missing, [], `contributed but never registered: ${missing.join(', ')}`);
+  });
 });

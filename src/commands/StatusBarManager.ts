@@ -51,8 +51,11 @@ export class StatusBarManager implements vscode.Disposable {
     if (!this.switchModeItem) {
       this.switchModeItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
     }
-    this.switchModeItem.text = `$(git-branch) Worktree: ${SWITCH_MODE_LABELS[mode]} ×`;
-    this.switchModeItem.tooltip = 'Click to clear remembered worktree switch mode';
+    // `$(pin)` matches the pin button in the switch dialog that creates this
+    // state. The old text ended in a bare `×`, which reads as a close button but
+    // isn't one — the whole item is the click target.
+    this.switchModeItem.text = `$(pin) ${SWITCH_MODE_LABELS[mode]}`;
+    this.switchModeItem.tooltip = 'Pinned worktree switch mode — click to clear';
     this.switchModeItem.command = 'ygg.clearSwitchMode';
     this.switchModeItem.show();
   }
@@ -71,7 +74,9 @@ export class StatusBarManager implements vscode.Disposable {
       const worktrees = this.git.getCachedWorktrees() ?? (await this.git.listWorktrees());
       const current = worktrees.find((wt) => wt.isCurrent);
       if (current) {
-        this.worktreeItem.text = `$(file-submodule) ${current.branch}`;
+        // `$(git-branch)` is the extension's worktree glyph. This used to be
+        // `$(file-submodule)`, which is also the tree's "type changed" file icon.
+        this.worktreeItem.text = `$(git-branch) ${current.branch}`;
         this.worktreeItem.show();
       } else {
         this.worktreeItem.hide();
