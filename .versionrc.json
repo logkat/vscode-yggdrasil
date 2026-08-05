@@ -1,6 +1,7 @@
 {
   "header": "# Changelog\n\nAll notable changes to the \"yggdrasil\" extension will be documented in this file.\n",
   "releaseCommitMessageFormat": "chore(release): {{currentTag}} [skip ci]",
+  "noBumpWhenEmptyChanges": true,
   "types": [
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },

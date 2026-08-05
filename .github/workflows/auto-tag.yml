@@ -1,8 +1,11 @@
 name: Auto Release
 
-# Runs on push to main branch. If the commit is not a release commit (does not contain [skip ci]),
-# this workflow runs npm run release to automatically bump version, update changelog,
-# commit/tag changes, push back to main, and trigger the Publish Extension workflow.
+# Runs on push to main. If the commit is not a release commit (does not contain [skip ci]),
+# this workflow runs npm run release to bump the version, update the changelog,
+# commit/tag the changes, push back to main, and trigger the Publish Extension workflow.
+#
+# NOTE: `main` is protected by a ruleset requiring pull requests. A plain GITHUB_TOKEN
+# cannot push here — see the "Push changes and tags" step below.
 on:
   push:
     branches:
@@ -11,6 +14,12 @@ on:
 permissions:
   contents: write
   actions: write
+
+# Two pushes landing close together would otherwise start two release jobs from the
+# same base, both computing the same version. Serialise them.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -21,9 +30,13 @@ jobs:
         with:
           # Fetch full history to determine version bump and generate changelogs accurately
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # A ruleset on `main` requires changes to go through a pull request, so the
+          # default GITHUB_TOKEN is rejected with GH013. Set a RELEASE_TOKEN secret
+          # (fine-grained PAT or GitHub App token) whose actor is on the ruleset's
+          # bypass list. Without it this job cannot push and will fail at that step.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
@@ -31,23 +44,56 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Never cut a release from a tree that does not build and pass tests. Without
+      # this the version commit and tag are created first and only the downstream
+      # publish discovers the breakage — leaving main claiming a version that never
+      # shipped.
+      - name: Verify build and tests
+        run: |
+          npm run lint
+          npm run format:check
+          npm run compile
+          xvfb-run -a npm test
+
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      # With noBumpWhenEmptyChanges set in .versionrc.json, a push carrying only
+      # hidden types (chore/docs/ci/test/style) produces no release at all. Compare
+      # HEAD across the run to tell "released" from "nothing to do" — without this,
+      # a no-op run would fall through and re-dispatch publish for the version that
+      # is already live.
       - name: Run release
-        run: npm run release
-
-      - name: Push changes and tags
+        id: release
         run: |
-          git push origin main --follow-tags
+          before=$(git rev-parse HEAD)
+          npm run release
+          after=$(git rev-parse HEAD)
+          if [ "$before" = "$after" ]; then
+            echo "No releasable changes since the last tag; skipping publish."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "value=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Get version tag
-        id: tag
-        run: echo "value=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      # --atomic is load-bearing: with --follow-tags alone, a rejected branch push
+      # can still leave the tag on the remote, pointing at a commit that is on no
+      # branch. That burns the version number and blocks the next release.
+      - name: Push changes and tags
+        if: steps.release.outputs.released == 'true'
+        run: |
+          git push origin main --follow-tags --atomic
 
+      # The release commit carries [skip ci], which suppresses the tag-push trigger on
+      # publish.yml, so the publish run has to be dispatched explicitly.
       - name: Dispatch publish workflow
-        run: gh workflow run publish.yml --ref "${{ steps.tag.outputs.value }}"
+        if: steps.release.outputs.released == 'true'
+        run: gh workflow run publish.yml --ref "$RELEASE_TAG"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Passed via env rather than interpolated straight into the run block:
+          # the value derives from package.json, which is repo content.
+          RELEASE_TAG: ${{ steps.release.outputs.value }}
