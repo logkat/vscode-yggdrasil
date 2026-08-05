@@ -18,7 +18,7 @@ suite('WorktreeDecorationProvider', () => {
   });
 
   test('exhaustive randomness: uses all 9 pool colors before repeating', () => {
-    const git = { getCachedWorktrees: () => [] } as any;
+    const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [] } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const colorsUsed = new Set<string>();
@@ -39,7 +39,7 @@ suite('WorktreeDecorationProvider', () => {
   });
 
   test('stability: same path returns same color', () => {
-    const git = { getCachedWorktrees: () => [] } as any;
+    const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [] } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
     const uri = vscode.Uri.parse('ygg-worktree://worktree?path=%2Frepo%2Fwt1&branch=b1');
 
@@ -50,7 +50,10 @@ suite('WorktreeDecorationProvider', () => {
 
   test('current worktree → ygg.worktreeColor.current', () => {
     const current = mockWorktree({ path: '/repo/current', isCurrent: true });
-    const git = { getCachedWorktrees: () => [current] } as any;
+    const git = {
+      getCachedBranchChanges: () => undefined,
+      getCachedWorktrees: () => [current],
+    } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const uri = vscode.Uri.parse('ygg-worktree://worktree?path=%2Frepo%2Fcurrent&branch=current');
@@ -62,7 +65,10 @@ suite('WorktreeDecorationProvider', () => {
     // base is the first one after sorting. sortWorktrees uses main/develop/master order.
     const main = mockWorktree({ path: '/repo/main', branch: 'main' });
     const feat = mockWorktree({ path: '/repo/feat', branch: 'feat' });
-    const git = { getCachedWorktrees: () => [feat, main] } as any; // main will be sorted first
+    const git = {
+      getCachedBranchChanges: () => undefined,
+      getCachedWorktrees: () => [feat, main],
+    } as any; // main will be sorted first
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const uri = vscode.Uri.parse('ygg-worktree://worktree?path=%2Frepo%2Fmain&branch=main');
@@ -72,7 +78,10 @@ suite('WorktreeDecorationProvider', () => {
 
   test('current wins over base when a path is both', () => {
     const mainCurrent = mockWorktree({ path: '/repo/main', branch: 'main', isCurrent: true });
-    const git = { getCachedWorktrees: () => [mainCurrent] } as any;
+    const git = {
+      getCachedBranchChanges: () => undefined,
+      getCachedWorktrees: () => [mainCurrent],
+    } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const uri = vscode.Uri.parse('ygg-worktree://worktree?path=%2Frepo%2Fmain&branch=main');
@@ -82,7 +91,7 @@ suite('WorktreeDecorationProvider', () => {
 
   test('subtree shares worktree color', () => {
     const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
-    const git = { getCachedWorktrees: () => [wt] } as any;
+    const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [wt] } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const wtUri = vscode.Uri.parse('ygg-worktree://worktree?path=%2Frepo%2Fwt&branch=wt');
@@ -97,7 +106,7 @@ suite('WorktreeDecorationProvider', () => {
 
   test('colors off: no decoration at all', () => {
     const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
-    const git = { getCachedWorktrees: () => [wt] } as any;
+    const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [wt] } as any;
     const provider = new WorktreeDecorationProvider(git, () => false);
 
     const uri = vscode.Uri.parse('ygg-worktree://wt?path=%2Frepo%2Fwt');
@@ -110,7 +119,10 @@ suite('WorktreeDecorationProvider', () => {
     // about the assignment map.
     const main = mockWorktree({ path: '/repo/main', branch: 'main' });
     const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
-    const git = { getCachedWorktrees: () => [main, wt] } as any;
+    const git = {
+      getCachedBranchChanges: () => undefined,
+      getCachedWorktrees: () => [main, wt],
+    } as any;
 
     let enabled = false;
     const provider = new WorktreeDecorationProvider(git, () => enabled);
@@ -132,7 +144,7 @@ suite('WorktreeDecorationProvider', () => {
     // forward slashes even on win32; item paths are built with path.join, which
     // uses backslashes on win32. Both must normalize to the same color.
     const wt = mockWorktree({ path: 'C:/repo/wt', branch: 'wt' });
-    const git = { getCachedWorktrees: () => [wt] } as any;
+    const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [wt] } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const wtUri = vscode.Uri.parse(`ygg-worktree://wt?path=${encodeURIComponent('C:/repo/wt')}`);
@@ -147,7 +159,10 @@ suite('WorktreeDecorationProvider', () => {
 
   test('windows: backslash item path resolves to current worktree color', () => {
     const current = mockWorktree({ path: 'C:/repo/current', isCurrent: true });
-    const git = { getCachedWorktrees: () => [current] } as any;
+    const git = {
+      getCachedBranchChanges: () => undefined,
+      getCachedWorktrees: () => [current],
+    } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const fileUri = vscode.Uri.parse(
@@ -163,7 +178,10 @@ suite('WorktreeDecorationProvider', () => {
     // the assignment map on the raw item path. A worktree row (forward slashes,
     // matching git's porcelain output) and a file row underneath it (backslashes,
     // from path.join on win32) must still land on the same color.
-    const git = { getCachedWorktrees: () => undefined } as any;
+    const git = {
+      getCachedBranchChanges: () => undefined,
+      getCachedWorktrees: () => undefined,
+    } as any;
     const provider = new WorktreeDecorationProvider(git, () => true);
 
     const wtUri = vscode.Uri.parse(`ygg-worktree://wt?path=${encodeURIComponent('C:/repo/wt')}`);
@@ -176,9 +194,214 @@ suite('WorktreeDecorationProvider', () => {
     assert.strictEqual(wtColor, fileColor);
   });
 
+  suite('state badges', () => {
+    const uriFor = (p: string, branch: string): vscode.Uri =>
+      vscode.Uri.parse(
+        `ygg-worktree:branch:${encodeURIComponent(branch)}?path=${encodeURIComponent(p)}`
+      );
+
+    test('dirty worktree row gets a badge', () => {
+      const wt = mockWorktree({ path: '/repo/wt', branch: 'wt', isDirty: true });
+      const git = {
+        getCachedBranchChanges: () => undefined,
+        getCachedWorktrees: () => [wt],
+      } as any;
+      const provider = new WorktreeDecorationProvider(git, () => true);
+
+      const decoration = provider.provideFileDecoration(uriFor('/repo/wt', 'wt'), {} as any) as any;
+      assert.strictEqual(decoration.badge, '●');
+    });
+
+    test('ahead-of-base worktree row shows the count', () => {
+      const wt = mockWorktree({ path: '/repo/wt', branch: 'wt', aheadCount: 3 });
+      const git = {
+        getCachedBranchChanges: () => undefined,
+        getCachedWorktrees: () => [wt],
+      } as any;
+      const provider = new WorktreeDecorationProvider(git, () => true);
+
+      const decoration = provider.provideFileDecoration(uriFor('/repo/wt', 'wt'), {} as any) as any;
+      assert.strictEqual(decoration.badge, '↑3');
+      assert.ok(decoration.tooltip.includes('3 commits ahead of base'));
+    });
+
+    test('badge stays within the two-character limit when both states apply', () => {
+      const wt = mockWorktree({ path: '/repo/wt', branch: 'wt', isDirty: true, aheadCount: 12 });
+      const git = {
+        getCachedBranchChanges: () => undefined,
+        getCachedWorktrees: () => [wt],
+      } as any;
+      const provider = new WorktreeDecorationProvider(git, () => true);
+
+      const decoration = provider.provideFileDecoration(uriFor('/repo/wt', 'wt'), {} as any) as any;
+      assert.ok(decoration.badge.length <= 2, `badge "${decoration.badge}" is too long`);
+    });
+
+    test('rows inside a worktree get no badge — only the worktree row does', () => {
+      // A file's status is NOT a badge. VS Code paints a TreeView badge in its
+      // own default colour and ignores FileDecoration.color for it, so a status
+      // letter here rendered grey beside a green or orange icon. The status
+      // colour lives on the icon and the letter in the description instead.
+      const wt = mockWorktree({ path: '/repo/wt', branch: 'wt', isDirty: true });
+      const git = {
+        getCachedWorktrees: () => [wt],
+        getCachedBranchChanges: () => ({
+          files: [{ relativePath: 'src/file.ts', status: 'M', isUntracked: false }],
+          baseSha: 'sha',
+          baseRef: 'main',
+        }),
+      } as any;
+      const provider = new WorktreeDecorationProvider(git, () => true);
+
+      const decoration = provider.provideFileDecoration(
+        uriFor('/repo/wt/src/file.ts', 'wt'),
+        {} as any
+      ) as any;
+      assert.strictEqual(decoration.badge, undefined);
+    });
+
+    test('badges are independent of ygg.worktreeColors', () => {
+      // The badge reports git state, not worktree identity, so turning the
+      // colour feature off must not hide it.
+      const wt = mockWorktree({ path: '/repo/wt', branch: 'wt', isDirty: true });
+      const git = {
+        getCachedBranchChanges: () => undefined,
+        getCachedWorktrees: () => [wt],
+      } as any;
+      const provider = new WorktreeDecorationProvider(git, () => false);
+
+      const decoration = provider.provideFileDecoration(uriFor('/repo/wt', 'wt'), {} as any) as any;
+      assert.strictEqual(decoration.badge, '●');
+      assert.strictEqual(decoration.color, undefined);
+    });
+
+    test('clean worktree with colours off still yields no decoration', () => {
+      const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
+      const git = {
+        getCachedBranchChanges: () => undefined,
+        getCachedWorktrees: () => [wt],
+      } as any;
+      const provider = new WorktreeDecorationProvider(git, () => false);
+
+      assert.strictEqual(
+        provider.provideFileDecoration(uriFor('/repo/wt', 'wt'), {} as any),
+        undefined
+      );
+    });
+  });
+
+  suite('colour persistence', () => {
+    test('a restored assignment survives a new provider instance', () => {
+      const main = mockWorktree({ path: '/repo/main', branch: 'main' });
+      const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
+      const git = {
+        getCachedBranchChanges: () => undefined,
+        getCachedWorktrees: () => [main, wt],
+      } as any;
+
+      let saved: Record<string, string> | undefined;
+      const store = {
+        get: () => saved,
+        set: (a: Record<string, string>) => {
+          saved = a;
+        },
+      };
+
+      const uri = vscode.Uri.parse('ygg-worktree://wt?path=%2Frepo%2Fwt');
+      const first = new WorktreeDecorationProvider(git, () => true, store);
+      const firstColor = (first.provideFileDecoration(uri, {} as any) as any).color.id;
+      assert.ok(saved, 'assignment should have been written to the store');
+
+      // A new window: same store, fresh provider, shuffle bag re-rolled.
+      const second = new WorktreeDecorationProvider(git, () => true, store);
+      const secondColor = (second.provideFileDecoration(uri, {} as any) as any).color.id;
+      assert.strictEqual(secondColor, firstColor);
+    });
+
+    test('pruning drops dead worktrees so their colours return to the pool', () => {
+      // Without pruning the persisted map only grows. Once nine dead entries
+      // exist every colour counts as used, the bag refills from the whole pool,
+      // and live worktrees start sharing colours — the exact guarantee that
+      // persisting the map was added to protect.
+      const saved: Record<string, string> = {};
+      for (let i = 1; i <= 9; i++) {
+        saved[`/repo/dead${i}`] = `ygg.worktreeColor.${i}`;
+      }
+      const live = mockWorktree({ path: '/repo/live', branch: 'live' });
+      const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [] } as any;
+      const provider = new WorktreeDecorationProvider(git, () => true, {
+        get: () => saved,
+        set: (a: Record<string, string>) => {
+          for (const k of Object.keys(saved)) {
+            delete saved[k];
+          }
+          Object.assign(saved, a);
+        },
+      });
+
+      provider.pruneAssignments([live]);
+      assert.deepStrictEqual(Object.keys(saved), [], 'dead assignments should be gone');
+
+      // With the pool free again, nine fresh worktrees get nine distinct colours.
+      const seen = new Set<string>();
+      for (let i = 0; i < 9; i++) {
+        const uri = vscode.Uri.parse(
+          `ygg-worktree://worktree?path=${encodeURIComponent(`/repo/new${i}`)}&branch=n${i}`
+        );
+        seen.add((provider.provideFileDecoration(uri, {} as any) as any).color.id);
+      }
+      assert.strictEqual(seen.size, 9);
+    });
+
+    test('the startup branch-keyed fallback is never persisted', () => {
+      // That key is a stand-in until the worktree list resolves; persisting it
+      // would leave the same worktree holding two of the nine slots.
+      let saved: Record<string, string> | undefined;
+      const git = {
+        getCachedBranchChanges: () => undefined,
+        getCachedWorktrees: () => undefined,
+      } as any;
+      const provider = new WorktreeDecorationProvider(git, () => true, {
+        get: () => undefined,
+        set: (a: Record<string, string>) => {
+          saved = a;
+        },
+      });
+
+      provider.provideFileDecoration(
+        vscode.Uri.parse('ygg-worktree://wt?path=%2Frepo%2Fwt'),
+        {} as any
+      );
+      assert.strictEqual(saved, undefined, 'nothing should have been written to the store');
+    });
+
+    test('restored assignments do not get handed out again to new worktrees', () => {
+      const claimed: Record<string, string> = { '/repo/a': 'ygg.worktreeColor.4' };
+      const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [] } as any;
+      const provider = new WorktreeDecorationProvider(git, () => true, {
+        get: () => claimed,
+        set: () => {},
+      });
+
+      const seen = new Set<string>();
+      for (let i = 0; i < 8; i++) {
+        const uri = vscode.Uri.parse(
+          `ygg-worktree://worktree?path=${encodeURIComponent(`/repo/new${i}`)}&branch=n${i}`
+        );
+        seen.add((provider.provideFileDecoration(uri, {} as any) as any).color.id);
+      }
+
+      assert.ok(
+        !seen.has('ygg.worktreeColor.4'),
+        'the colour already assigned to /repo/a should not be reused while others are free'
+      );
+      assert.strictEqual(seen.size, 8, 'the remaining eight colours should all be distinct');
+    });
+  });
+
   test('the cached flag is not re-read per call', () => {
     const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
-    const git = { getCachedWorktrees: () => [wt] } as any;
+    const git = { getCachedBranchChanges: () => undefined, getCachedWorktrees: () => [wt] } as any;
     let reads = 0;
     const provider = new WorktreeDecorationProvider(git, () => {
       reads++;

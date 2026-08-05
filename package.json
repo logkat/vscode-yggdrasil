@@ -74,10 +74,23 @@
           "default": false,
           "description": "Show the Agent Sessions child node even when no sessions are detected for a worktree."
         },
+        "ygg.fileLayout": {
+          "type": "string",
+          "enum": [
+            "list",
+            "tree"
+          ],
+          "enumDescriptions": [
+            "Flat list with the directory shown beside the filename, like the Source Control view. Indentation is exact.",
+            "Nested folders. Note: VS Code indents a file one level too shallow when it sits beside a folder in the same level, so the icon column will not line up."
+          ],
+          "default": "list",
+          "description": "How changed files are laid out under each worktree."
+        },
         "ygg.worktreeColors": {
           "type": "boolean",
           "default": false,
-          "description": "Colour each worktree's rows, and the files and folders inside it, with a distinct colour."
+          "description": "Colour each worktree's rows, and the files and folders inside it, with a distinct colour. Applies only inside the Yggdrasil view — the Explorer is never tinted. When left unset this turns itself on under a High Contrast theme; setting it explicitly always wins."
         }
       }
     },
@@ -107,7 +120,7 @@
         "description": "Yggdrasil worktree color 2",
         "defaults": {
           "dark": "#5caeff",
-          "light": "#001a47",
+          "light": "#0a5ca8",
           "highContrast": "#1189ff",
           "highContrastLight": "#0062c4"
         }
@@ -187,7 +200,7 @@
       "activitybar": [
         {
           "id": "yggdrasil-view",
-          "title": "Git Worktree Explorer",
+          "title": "Yggdrasil",
           "icon": "./images/worktree.svg"
         }
       ]
@@ -196,17 +209,39 @@
       "yggdrasil-view": [
         {
           "id": "ygg.worktrees",
-          "name": "Git Worktrees"
+          "name": "Worktrees"
         }
       ],
       "explorer": [
         {
           "id": "ygg.worktrees.explorer",
-          "name": "Git Worktrees (Explorer)",
+          "name": "Git Worktrees",
           "when": "config.ygg.showInExplorer != false && yggdrasil.isReady"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "ygg.worktrees",
+        "contents": "No folder is open yet.\n\nYggdrasil reads worktrees from the git repository in your workspace.\n[Open Folder](command:vscode.openFolder)",
+        "when": "yggdrasil.viewState == noWorkspace"
+      },
+      {
+        "view": "ygg.worktrees",
+        "contents": "This folder isn't a git repository, so there are no worktrees to show.\n\nInitialise a repository, or open a folder that already is one.\n[Initialise Repository](command:git.init)\n[Open Folder](command:vscode.openFolder)",
+        "when": "yggdrasil.viewState == noRepo"
+      },
+      {
+        "view": "ygg.worktrees",
+        "contents": "Yggdrasil needs git on your PATH.\n\nInstall git, then reload the window.\n[Reload Window](command:workbench.action.reloadWindow)",
+        "when": "yggdrasil.viewState == noGit"
+      },
+      {
+        "view": "ygg.worktrees.explorer",
+        "contents": "No git repository in this workspace.",
+        "when": "yggdrasil.viewState == noRepo || yggdrasil.viewState == noWorkspace"
+      }
+    ],
     "commands": [
       {
         "command": "ygg.refresh",
@@ -243,12 +278,18 @@
         "command": "ygg.prune",
         "title": "Prune Missing Worktrees",
         "category": "ygg",
-        "icon": "$(trash)"
+        "icon": "$(clear-all)"
       },
       {
         "command": "ygg.setBaseBranch",
         "title": "Set Base Branch...",
         "category": "ygg"
+      },
+      {
+        "command": "ygg.toggleWorktreeColors",
+        "title": "Toggle High Contrast Worktree Colours",
+        "category": "ygg",
+        "icon": "$(symbol-color)"
       },
       {
         "command": "ygg.remove",

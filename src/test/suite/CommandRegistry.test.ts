@@ -105,10 +105,30 @@ suite('CommandRegistry', () => {
       const ctx = makeMockContext();
       const reg = new CommandRegistry(ctx, makeMockGit(), makeMockProvider());
 
-      const originalShowQP = vscode.window.showQuickPick;
+      const originalCreateQP = vscode.window.createQuickPick;
       const originalExecute = vscode.commands.executeCommand;
 
-      (vscode.window as any).showQuickPick = async () => undefined;
+      // The switch dialog is a createQuickPick (it carries per-item pin buttons,
+      // which showQuickPick cannot do). Dismissal is onDidHide firing without an
+      // accept, so the stub hides as soon as it is shown.
+      (vscode.window as any).createQuickPick = () => {
+        const hideHandlers: (() => void)[] = [];
+        return {
+          items: [],
+          title: '',
+          placeholder: '',
+          selectedItems: [],
+          onDidAccept: () => ({ dispose: () => {} }),
+          onDidTriggerItemButton: () => ({ dispose: () => {} }),
+          onDidHide: (h: () => void) => {
+            hideHandlers.push(h);
+            return { dispose: () => {} };
+          },
+          show: () => hideHandlers.forEach((h) => h()),
+          hide: () => {},
+          dispose: () => {},
+        };
+      };
 
       let openCalled = false;
       (vscode.commands as any).executeCommand = async (cmd: string, ...args: any[]) => {
@@ -123,7 +143,7 @@ suite('CommandRegistry', () => {
         await (reg as any).switchWorktree(makeWorktreeItem('feature', '/repo/feature'));
         assert.strictEqual(openCalled, false, 'should not open when dialog is dismissed');
       } finally {
-        (vscode.window as any).showQuickPick = originalShowQP;
+        (vscode.window as any).createQuickPick = originalCreateQP;
         (vscode.commands as any).executeCommand = originalExecute;
       }
     });

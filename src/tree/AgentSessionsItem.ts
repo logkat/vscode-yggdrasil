@@ -20,7 +20,7 @@ export class AgentSessionItem extends vscode.TreeItem {
     super(`${session.agentLabel}${statusPart}`, vscode.TreeItemCollapsibleState.None);
 
     const idShort = session.sessionId.slice(0, 8);
-    const namePart = session.name ? `  "${session.name}"` : '';
+    const namePart = session.name ? ` "${session.name}"` : '';
     this.description = `${idShort}${namePart}`;
 
     this.iconPath = AgentSessionItem.iconFor(session);

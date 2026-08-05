@@ -29,7 +29,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     );
 
-    const decorationProvider = new WorktreeDecorationProvider(git);
+    // Colour assignments live in workspaceState so a worktree keeps the same
+    // colour across windows and restarts — a colour that changes every session
+    // is decoration, not identification.
+    const COLOR_ASSIGNMENTS_KEY = 'ygg.worktreeColorAssignments';
+    const decorationProvider = new WorktreeDecorationProvider(git, undefined, {
+      get: () => context.workspaceState.get<Record<string, string>>(COLOR_ASSIGNMENTS_KEY),
+      set: (assignments) => {
+        void context.workspaceState.update(COLOR_ASSIGNMENTS_KEY, assignments);
+      },
+    });
 
     const agentProviderIds = vscode.workspace
       .getConfiguration('ygg')
@@ -70,9 +79,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     context.subscriptions.push(
       vscode.window.registerFileDecorationProvider(decorationProvider),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('ygg.worktreeColors')) {
-          decorationProvider.refresh();
+        if (e.affectsConfiguration('ygg.fileLayout')) {
+          provider.refresh();
         }
+        if (e.affectsConfiguration('ygg.worktreeColors')) {
+          // Decorations first so the cached setting is cleared, then the tree —
+          // rebuilding the rows is what re-tints the worktree icons.
+          decorationProvider.refresh();
+          provider.refresh();
+        }
+      }),
+      // An untouched `ygg.worktreeColors` follows the theme, so switching into
+      // or out of a high-contrast theme has to re-evaluate it.
+      vscode.window.onDidChangeActiveColorTheme(() => {
+        decorationProvider.refresh();
+        provider.refresh();
       }),
       treeView,
       explorerView,

@@ -67,6 +67,94 @@ function sessionsRenderEqual(a: AgentSession[], b: AgentSession[]): boolean {
   return true;
 }
 
+/**
+ * Empty-state classification, published as the `yggdrasil.viewState` context key
+ * so `viewsWelcome` in package.json can render real guidance instead of VS Code's
+ * bare "There are no items to show".
+ */
+export type ViewState = 'ready' | 'noWorkspace' | 'noRepo' | 'noGit' | 'error';
+
+export type FileLayout = 'list' | 'tree';
+
+export function readFileLayout(): FileLayout {
+  return vscode.workspace.getConfiguration('ygg').get<FileLayout>('fileLayout', 'list') === 'tree'
+    ? 'tree'
+    : 'list';
+}
+
+function classifyRootError(message: string): Exclude<ViewState, 'ready'> {
+  const m = message.toLowerCase();
+  if (m.includes('no workspace folder')) {
+    return 'noWorkspace';
+  }
+  if (m.includes('git not found')) {
+    return 'noGit';
+  }
+  if (m.includes('not a git repository')) {
+    return 'noRepo';
+  }
+  return 'error';
+}
+
+/**
+ * A tree row for something that went wrong. Raw git stderr goes in the tooltip,
+ * never the label — a label like
+ * `fatal: not a git repository (or any of the parent directories): .git`
+ * is truncated mid-sentence at any realistic sidebar width.
+ */
+function problemItem(label: string, message: string, retry = false): vscode.TreeItem {
+  const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
+  item.description = retry ? 'Click to retry' : firstLine(message);
+  item.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('list.errorForeground'));
+  item.tooltip = new vscode.MarkdownString(`**${label}**\n\n\`\`\`\n${message}\n\`\`\``);
+  item.contextValue = 'worktreeError';
+  if (retry) {
+    item.command = { command: 'ygg.refresh', title: 'Retry' };
+  }
+  return item;
+}
+
+/**
+ * The single explanatory row shown under a worktree that has no working tree to
+ * compare — missing, bare, or a branch that isn't checked out anywhere. Returns
+ * undefined for a normal worktree, which then lists its changed files.
+ */
+function stateRowFor(wt: Worktree): vscode.TreeItem | undefined {
+  if (wt.isVirtual) {
+    const item = new vscode.TreeItem('Not checked out', vscode.TreeItemCollapsibleState.None);
+    item.description = 'switch to create a worktree for this branch';
+    item.iconPath = new vscode.ThemeIcon('circle-outline');
+    item.tooltip = new vscode.MarkdownString(
+      `**${wt.branch}** exists in the repository but has no worktree.`
+    );
+    return item;
+  }
+  if (!wt.pathExists) {
+    const item = new vscode.TreeItem('Folder is missing', vscode.TreeItemCollapsibleState.None);
+    item.description = 'prune to remove this entry';
+    item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('list.errorForeground'));
+    item.tooltip = new vscode.MarkdownString(
+      `\`${wt.path}\` is registered as a worktree but no longer exists on disk.`
+    );
+    return item;
+  }
+  if (wt.bare) {
+    const item = new vscode.TreeItem('Bare repository', vscode.TreeItemCollapsibleState.None);
+    item.description = 'no working tree';
+    item.iconPath = new vscode.ThemeIcon('archive');
+    item.tooltip = new vscode.MarkdownString(
+      `\`${wt.path}\` holds the git database. Worktrees are checked out elsewhere.`
+    );
+    return item;
+  }
+  return undefined;
+}
+
+function firstLine(message: string): string {
+  const line = message.split('\n')[0].trim();
+  return line.length > 60 ? `${line.slice(0, 59)}…` : line;
+}
+
 function fileStatusesEqual(a: FileStatus[], b: FileStatus[]): boolean {
   if (a.length !== b.length) {
     return false;
@@ -91,6 +179,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
   private watchers: vscode.FileSystemWatcher[] = [];
   private lastError: string | undefined;
+  private viewState: ViewState | undefined;
   private isRefreshing = false;
   private refreshingNodes = new Set<string>();
 
@@ -106,7 +195,8 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   constructor(
     private readonly git: GitService,
     private readonly decorationProvider?: WorktreeDecorationProvider,
-    private readonly agentService?: AgentSessionService
+    private readonly agentService?: AgentSessionService,
+    private readonly readLayout: () => FileLayout = readFileLayout
   ) {}
 
   public refresh(): void {
@@ -177,6 +267,9 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
       if (changed) {
         this.treeCache.delete(element.worktree.path); // Invalidate memoized tree for this node
         this._onDidChangeTreeData.fire(element);
+        // Status badges are decorations, so a file changing state has to
+        // invalidate them too or the letter on the right goes stale.
+        this.decorationProvider?.refresh();
       }
     } catch (err) {
       console.log(`Node background refresh failed for ${element.worktree.branch}:`, err);
@@ -216,6 +309,14 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 
   private getChildrenForWorktree(element: WorktreeItem): TreeNode[] | Thenable<TreeNode[]> {
+    // Worktrees with no working tree to diff still expand, to one line saying
+    // why. That keeps a twistie on every worktree row, which is what
+    // distinguishes a worktree from a file nested under one.
+    const state = stateRowFor(element.worktree);
+    if (state) {
+      return [state];
+    }
+
     const agentNodes = this.buildAgentNodes(element.worktree.path);
 
     const cached = this.git.getCachedBranchChanges(element.worktree.path);
@@ -255,16 +356,7 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
       })
       .catch((err) => {
         const msg = err instanceof Error ? err.message : String(err);
-        const errorItem = new vscode.TreeItem(
-          `Error: ${msg}`,
-          vscode.TreeItemCollapsibleState.None
-        );
-        errorItem.iconPath = new vscode.ThemeIcon(
-          'error',
-          new vscode.ThemeColor('list.errorForeground')
-        );
-        errorItem.tooltip = new vscode.MarkdownString(`**Git Error:**\n\n${msg}`);
-        return [...agentNodes, errorItem];
+        return [...agentNodes, problemItem('Could not read branch changes', msg)];
       });
   }
 
@@ -287,7 +379,31 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     if (changes.files.length === 0) {
       return [this.cleanItem(changes.baseRef, changes.baseSha)];
     }
-    return this.buildFileTree(changes.files, worktreePath, branch, changes.baseSha);
+    if (this.readLayout() === 'tree') {
+      return this.buildFileTree(changes.files, worktreePath, branch, changes.baseSha);
+    }
+    return this.buildFileList(changes.files, worktreePath, branch, changes.baseSha);
+  }
+
+  /**
+   * A single flat level of leaves, with the containing directory shown dimmed
+   * beside the filename — the layout VS Code's own Source Control view uses.
+   *
+   * This is the default because it is the only layout that renders correctly.
+   * VS Code's tree indents a non-collapsible row one level too shallow when its
+   * level also contains a collapsible one, so a file sitting next to a folder
+   * drifts left out of the icon column. Every level here is leaves-only, so the
+   * mixed case never arises and the icon column is exact. See `ygg.fileLayout`.
+   */
+  private buildFileList(
+    files: FileStatus[],
+    worktreePath: string,
+    branch: string,
+    baseSha: string
+  ): WorktreeFileItem[] {
+    return [...files]
+      .sort((a, b) => a.relativePath.localeCompare(b.relativePath))
+      .map((file) => this.getOrCreateFileItem(file, worktreePath, branch, baseSha, true));
   }
 
   private getRootChildren(): TreeNode[] | Thenable<TreeNode[]> {
@@ -296,6 +412,10 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
     if (cachedWorktrees && cachedRepoRoot) {
       this.triggerBackgroundRefresh();
+      // Also published on the cached path: after a failed first load the key
+      // would otherwise stay at `error` forever, since every later call takes
+      // this branch and never reaches loadRootNodes.
+      this.setViewState('ready');
 
       if (this.rootCache) {
         return this.rootCache;
@@ -338,11 +458,28 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
 
       const sortedWorktrees = sortWorktrees(worktrees);
       this.rootCache = sortedWorktrees.map((wt) => this.getOrCreateWorktreeItem(wt, repoRoot));
+      this.setViewState('ready');
       return this.rootCache;
     } catch (err: unknown) {
       this.lastError = err instanceof Error ? err.message : String(err);
-      return [this.errorItem(this.lastError!)];
+      const state = classifyRootError(this.lastError!);
+      this.setViewState(state);
+      // The expected "you haven't given me a repo yet" states return no rows on
+      // purpose: an empty tree is what lets the `viewsWelcome` content show.
+      // Only genuinely unexpected failures get a row, because only those have a
+      // message worth surfacing.
+      return state === 'error'
+        ? [problemItem('Could not list worktrees', this.lastError!, true)]
+        : [];
     }
+  }
+
+  private setViewState(state: ViewState): void {
+    if (this.viewState === state) {
+      return;
+    }
+    this.viewState = state;
+    vscode.commands.executeCommand('setContext', 'yggdrasil.viewState', state);
   }
 
   private cleanItem(baseRef: string, baseSha: string): vscode.TreeItem {
@@ -363,20 +500,33 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     );
   }
 
+  /**
+   * Rows inside a worktree keep the synthetic scheme rather than their real
+   * on-disk URI, and that is deliberate: a FileDecoration applies to a URI
+   * everywhere it appears in the workbench, not per view. Real paths meant the
+   * worktree tint bled into the Explorer and the editor tabs. The synthetic
+   * scheme only ever appears in this tree, so the colouring stays where the user
+   * asked for it.
+   */
+  private makeFileUri(wtPath: string, relativePath: string, branch: string): vscode.Uri {
+    return this.makeWorktreeUri(path.join(wtPath, relativePath), branch);
+  }
+
   private getOrCreateWorktreeItem(wt: Worktree, repoRoot: string): WorktreeItem {
     const id = wt.path;
     const existing = this.instanceCache.get(id);
     const newUri = this.makeWorktreeUri(wt.path, wt.branch);
+    const colorId = this.decorationProvider?.colorIdForWorktree(wt.path, wt.branch);
 
     if (existing instanceof WorktreeItem) {
-      existing.updateFrom(wt, repoRoot, newUri);
+      existing.updateFrom(wt, repoRoot, newUri, colorId);
       const existingSessions = this.agentSessionCache.get(wt.path);
       if (existingSessions !== undefined) {
         existing.updateSessions(existingSessions);
       }
       return existing;
     }
-    const item = new WorktreeItem(wt, repoRoot, newUri);
+    const item = new WorktreeItem(wt, repoRoot, newUri, colorId);
     const newSessions = this.agentSessionCache.get(wt.path);
     if (newSessions !== undefined) {
       item.updateSessions(newSessions);
@@ -394,13 +544,23 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
   ): WorktreeFolderItem {
     const id = path.join(wtPath, folderPath);
     const existing = this.instanceCache.get(id);
-    const newUri = this.makeWorktreeUri(path.join(wtPath, folderPath), branch);
+    const newUri = this.makeFileUri(wtPath, folderPath, branch);
+    const colorId = this.decorationProvider?.colorIdForWorktree(wtPath, branch);
 
     if (existing instanceof WorktreeFolderItem) {
-      existing.updateUri(newUri);
+      existing.updateColor(colorId);
       return existing;
     }
-    const item = new WorktreeFolderItem(name, folderPath, wtPath, branch, baseSha, [], newUri);
+    const item = new WorktreeFolderItem(
+      name,
+      folderPath,
+      wtPath,
+      branch,
+      baseSha,
+      [],
+      newUri,
+      colorId
+    );
     this.instanceCache.set(id, item);
     return item;
   }
@@ -409,16 +569,17 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     file: FileStatus,
     wtPath: string,
     branch: string,
-    baseSha: string
+    baseSha: string,
+    showDirectory = false
   ): WorktreeFileItem {
     const id = path.join(wtPath, file.relativePath);
     const existing = this.instanceCache.get(id);
     if (existing instanceof WorktreeFileItem) {
-      existing.updateFrom(file);
+      existing.updateFrom(file, showDirectory);
       return existing;
     }
-    const uri = this.makeWorktreeUri(path.join(wtPath, file.relativePath), branch);
-    const item = new WorktreeFileItem(file, wtPath, branch, baseSha, uri);
+    const uri = this.makeFileUri(wtPath, file.relativePath, branch);
+    const item = new WorktreeFileItem(file, wtPath, branch, baseSha, uri, showDirectory);
     this.instanceCache.set(id, item);
     return item;
   }
@@ -436,7 +597,13 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     const sortedFiles = [...files].sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
     for (const file of sortedFiles) {
-      const parts = file.relativePath.split(/[/\\]/);
+      // `filter(Boolean)` guards against a trailing separator: a path like
+      // `src/` would otherwise yield a final empty part and build a folder
+      // containing a leaf of the same name.
+      const parts = file.relativePath.split(/[/\\]/).filter(Boolean);
+      if (parts.length === 0) {
+        continue;
+      }
       let currentPath = '';
       let currentChildren = rootNodes;
 
@@ -486,34 +653,17 @@ export class WorktreeProvider implements vscode.TreeDataProvider<TreeNode> {
     return rootNodes;
   }
 
-  private errorItem(message: string): WorktreeItem {
-    const dummy: Worktree = {
-      path: '',
-      branch: message,
-      head: '',
-      isCurrent: false,
-      isMain: false,
-      isDirty: false,
-      pathExists: true,
-      locked: false,
-      bare: false,
-    };
-    const item = new WorktreeItem(dummy, '', vscode.Uri.parse('ygg-worktree:error'));
-    item.contextValue = 'worktreeError';
-    item.iconPath = new vscode.ThemeIcon('error');
-    item.command = {
-      command: 'ygg.refresh',
-      title: 'Retry',
-    };
-    return item;
-  }
-
   /**
    * Drop cached item instances for worktrees that no longer exist so the
    * instanceCache cannot grow unboundedly across sessions where worktrees come
    * and go.
    */
   private pruneInstanceCacheForWorktrees(fresh: Worktree[]): void {
+    // Colour assignments are persisted, so they need the same pruning the item
+    // cache gets — otherwise dead worktrees keep their slots in a nine-colour
+    // pool forever and live ones start sharing colours.
+    this.decorationProvider?.pruneAssignments(fresh);
+
     const liveWorktreePaths = new Set(fresh.map((wt) => wt.path));
     for (const key of this.instanceCache.keys()) {
       const item = this.instanceCache.get(key);

@@ -10,6 +10,16 @@ import {
 } from './StatusBarManager';
 import { AgentSession } from '../agents/IAgentProvider';
 import { AgentSessionService } from '../agents/AgentSessionService';
+import { readWorktreeColorsSetting } from '../tree/WorktreeDecorationProvider';
+
+/**
+ * Confirmation for actions whose result is already visible (a clipboard write, a
+ * finished refresh). A notification toast demands dismissal and stacks up; the
+ * status bar says the same thing and gets out of the way.
+ */
+function toast(message: string): void {
+  vscode.window.setStatusBarMessage(`$(check) ${message}`, 3000);
+}
 
 export class CommandRegistry implements vscode.Disposable {
   private readonly statusBar: StatusBarManager;
@@ -93,20 +103,26 @@ export class CommandRegistry implements vscode.Disposable {
       vscode.commands.registerCommand('ygg.copyAgentResumeCommand', (session: AgentSession) => {
         const text = session.resumeCommand ?? session.sessionId;
         vscode.env.clipboard.writeText(text);
-        vscode.window.showInformationMessage(`Copied: ${text}`);
+        toast('Resume command copied');
       })
     );
 
     disposables.push(
       vscode.commands.registerCommand('ygg.copyAgentSessionId', (session: AgentSession) => {
         vscode.env.clipboard.writeText(session.sessionId);
-        vscode.window.showInformationMessage(`Copied session ID: ${session.sessionId}`);
+        toast('Session ID copied');
       })
     );
 
     disposables.push(
       vscode.commands.registerCommand('ygg.detectAgentProviders', async () =>
         this.detectAgentProviders()
+      )
+    );
+
+    disposables.push(
+      vscode.commands.registerCommand('ygg.toggleWorktreeColors', async () =>
+        this.toggleWorktreeColors()
       )
     );
 
@@ -149,7 +165,11 @@ export class CommandRegistry implements vscode.Disposable {
 
   private async selectAndSwitch(): Promise<void> {
     const all = await this.git.listWorktrees();
-    const candidates = all.filter((wt) => !wt.isCurrent && wt.pathExists && !wt.isVirtual);
+    // A bare repo has no working tree to open — offering it as a switch target
+    // produced a dialog titled "Open worktree: (bare)".
+    const candidates = all.filter(
+      (wt) => !wt.isCurrent && wt.pathExists && !wt.isVirtual && !wt.bare
+    );
     if (candidates.length === 0) {
       vscode.window.showInformationMessage('No other worktrees to switch to.');
       return;
@@ -198,71 +218,73 @@ export class CommandRegistry implements vscode.Disposable {
     }
   }
 
-  private async promptSwitchMode(
+  /**
+   * Three modes, each with a pin button that also saves the choice as the
+   * default. The previous version listed all three twice — once to act, once to
+   * "save as default" — and hard-space-padded the labels to fake column
+   * alignment in a proportional font, which never actually aligned.
+   */
+  private promptSwitchMode(
     branch: string,
     wtPath: string
   ): Promise<{ mode: SwitchMode; remember: boolean } | undefined> {
     interface ModeItem extends vscode.QuickPickItem {
       mode: SwitchMode;
-      remember: boolean;
     }
 
-    const once: ModeItem[] = [
+    const pin: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('pin'),
+      tooltip: 'Always use this mode and skip this dialog',
+    };
+
+    const items: ModeItem[] = [
       {
-        label: '$(window)       New Window',
+        label: '$(window) New Window',
         description: 'Open in a new VS Code window',
         mode: 'newWindow',
-        remember: false,
+        buttons: [pin],
       },
       {
-        label: '$(replace-all)  Replace Window',
+        label: '$(replace-all) Replace Window',
         description: 'Reuse this VS Code window',
         mode: 'replace',
-        remember: false,
+        buttons: [pin],
       },
       {
-        label: '$(add)          Add to Workspace',
-        description: 'Add folder to current workspace',
+        label: '$(add) Add to Workspace',
+        description: 'Add folder to the current workspace',
         mode: 'addWorkspace',
-        remember: false,
-      },
-    ];
-    const remembered: ModeItem[] = [
-      {
-        label: '$(window)       New Window',
-        description: 'Open in new window and save as default',
-        mode: 'newWindow',
-        remember: true,
-      },
-      {
-        label: '$(replace-all)  Replace Window',
-        description: 'Replace window and save as default',
-        mode: 'replace',
-        remember: true,
-      },
-      {
-        label: '$(add)          Add to Workspace',
-        description: 'Add to workspace and save as default',
-        mode: 'addWorkspace',
-        remember: true,
+        buttons: [pin],
       },
     ];
 
-    const allItems: (ModeItem | vscode.QuickPickItem)[] = [
-      ...once,
-      { label: 'Save as default', kind: vscode.QuickPickItemKind.Separator },
-      ...remembered,
-    ];
+    return new Promise((resolve) => {
+      const qp = vscode.window.createQuickPick<ModeItem>();
+      qp.title = `Open worktree: ${branch}`;
+      qp.placeholder = wtPath;
+      qp.items = items;
 
-    const picked = await vscode.window.showQuickPick(allItems, {
-      title: `Open worktree: ${branch}`,
-      placeHolder: wtPath,
+      let settled = false;
+      const settle = (result: { mode: SwitchMode; remember: boolean } | undefined): void => {
+        if (!settled) {
+          settled = true;
+          resolve(result);
+        }
+        qp.hide();
+      };
+
+      qp.onDidAccept(() => {
+        const picked = qp.selectedItems[0];
+        settle(picked ? { mode: picked.mode, remember: false } : undefined);
+      });
+      qp.onDidTriggerItemButton((e) => settle({ mode: e.item.mode, remember: true }));
+      qp.onDidHide(() => {
+        settle(undefined);
+        qp.dispose();
+      });
+
+      qp.show();
     });
-
-    if (!picked || !('mode' in picked)) {
-      return undefined;
-    }
-    return { mode: picked.mode, remember: picked.remember };
   }
 
   private async addWorktree(prefillBranch?: string): Promise<void> {
@@ -320,8 +342,14 @@ export class CommandRegistry implements vscode.Disposable {
     }
 
     try {
-      await this.git.addWorktree(wtPath, branch, isNew);
+      // `git worktree add` does a full checkout, so this is the one command here
+      // that can take real seconds. Without progress the window just sits there.
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: `Creating worktree '${branch}'…` },
+        () => this.git.addWorktree(wtPath!, branch, isNew)
+      );
       this.provider.refresh();
+      toast(`Worktree '${branch}' created`);
     } catch (err: unknown) {
       vscode.window.showErrorMessage(
         `Add worktree failed: ${err instanceof Error ? err.message : String(err)}`
@@ -331,9 +359,11 @@ export class CommandRegistry implements vscode.Disposable {
 
   private async pruneWorktrees(): Promise<void> {
     try {
-      await this.git.pruneWorktrees();
+      await vscode.window.withProgress({ location: { viewId: 'ygg.worktrees' } }, () =>
+        this.git.pruneWorktrees()
+      );
       this.provider.refresh();
-      vscode.window.showInformationMessage('Missing worktrees pruned successfully.');
+      toast('Missing worktrees pruned');
     } catch (err: unknown) {
       vscode.window.showErrorMessage(
         `Prune failed: ${err instanceof Error ? err.message : String(err)}`
@@ -346,19 +376,35 @@ export class CommandRegistry implements vscode.Disposable {
       const wtPath = item.worktree.path;
       const currentBase = this.context.workspaceState.get<string>(`ygg.baseBranch:${wtPath}`);
 
-      const options: (vscode.QuickPickItem & { branch?: string; clear?: boolean })[] = [
+      // The point of this command is choosing a branch, so it lists the branches
+      // — most recently committed first — instead of offering only "Clear" and
+      // "Custom…" and making the user type a name they have to remember.
+      const branches = await this.git.listBranches().catch(() => [] as string[]);
+
+      type BaseItem = vscode.QuickPickItem & { branch?: string; clear?: boolean; custom?: boolean };
+      const options: BaseItem[] = [
         {
           label: '$(close) Clear (use default)',
           description: 'Reset to global setting or upstream',
           clear: true,
         },
-        { label: '', kind: vscode.QuickPickItemKind.Separator },
-        { label: '$(edit) Custom...', description: 'Enter a branch name manually' },
+        { label: '$(edit) Custom…', description: 'Enter a branch name manually', custom: true },
       ];
+
+      if (branches.length > 0) {
+        options.push({ label: 'Branches', kind: vscode.QuickPickItemKind.Separator });
+        for (const branch of branches) {
+          options.push({
+            label: `$(git-branch) ${branch}`,
+            description: branch === currentBase ? 'current base' : undefined,
+            branch,
+          });
+        }
+      }
 
       const picked = await vscode.window.showQuickPick(options, {
         title: `Set Base Branch for ${item.worktree.branch}`,
-        placeHolder: currentBase ? `Current: ${currentBase}` : 'Enter base branch name',
+        placeHolder: currentBase ? `Current: ${currentBase}` : 'Select a base branch',
       });
 
       if (!picked) {
@@ -368,6 +414,8 @@ export class CommandRegistry implements vscode.Disposable {
       let newBase: string | undefined;
       if (picked.clear) {
         newBase = undefined;
+      } else if (picked.branch) {
+        newBase = picked.branch;
       } else {
         newBase = await vscode.window.showInputBox({
           prompt: `Enter base branch for ${item.worktree.branch}`,
@@ -413,8 +461,15 @@ export class CommandRegistry implements vscode.Disposable {
     }
 
     try {
-      await this.git.removeWorktree(item.worktree.path);
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Removing worktree '${item.worktree.branch}'…`,
+        },
+        () => this.git.removeWorktree(item.worktree.path)
+      );
       this.provider.refresh();
+      toast(`Worktree '${item.worktree.branch}' removed`);
     } catch (err: unknown) {
       vscode.window.showErrorMessage(
         `Remove worktree failed: ${err instanceof Error ? err.message : String(err)}`
@@ -453,6 +508,31 @@ export class CommandRegistry implements vscode.Disposable {
 
   public async updateWorktreeStatusBar(): Promise<void> {
     await this.statusBar.refreshWorktreeName();
+  }
+
+  /**
+   * Flips `ygg.worktreeColors`, writing an explicit value. That matters when the
+   * setting is currently unset and only on because the theme is high contrast:
+   * toggling then has to record an explicit `false`, or the next read would
+   * follow the theme straight back to on.
+   */
+  private async toggleWorktreeColors(): Promise<void> {
+    const config = vscode.workspace.getConfiguration('ygg');
+    const inspected = config.inspect<boolean>('worktreeColors');
+    // Write to the scope that actually wins when the value is read, highest
+    // precedence first. Writing Global while a folder-scoped value exists would
+    // leave the folder value in charge — the toast would claim a change that
+    // never reached the screen.
+    const target =
+      inspected?.workspaceFolderValue !== undefined
+        ? vscode.ConfigurationTarget.WorkspaceFolder
+        : inspected?.workspaceValue !== undefined
+          ? vscode.ConfigurationTarget.Workspace
+          : vscode.ConfigurationTarget.Global;
+
+    const next = !readWorktreeColorsSetting();
+    await config.update('worktreeColors', next, target);
+    toast(`Worktree colours ${next ? 'on' : 'off'}`);
   }
 
   private async detectAgentProviders(): Promise<void> {
