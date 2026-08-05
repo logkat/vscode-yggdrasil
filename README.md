@@ -32,6 +32,19 @@ Switch context quickly via a GUI dialog with three flexible modes:
 ### 🎯 Custom Comparison Bases
 Set a custom **Base Branch** per worktree to track changes against `develop`, `staging`, or specific release branches. Yggdrasil will auto-detect your tracking branch or fall back to `main` if not specified.
 
+### 🎨 Per-Worktree Colours
+Give every worktree its own colour so you can tell at a glance which one a file belongs to. The colour applies to the worktree's row and to every file and folder nested inside it. Your current worktree is always green, and your base worktree stays the default text colour.
+
+Colours are **off by default**. Turn them on with:
+
+```jsonc
+"ygg.worktreeColors": true,
+// VS Code's own decoration colours must also be enabled (they are by default):
+"explorer.decorations.colors": true
+```
+
+Every colour meets WCAG AA contrast against the background it renders on, in Light, Dark, and both High Contrast themes — including the tinted backgrounds VS Code draws behind hovered and selected rows. To override one, set the `ygg.worktreeColor.*` IDs under `workbench.colorCustomizations`.
+
 ## Installation
 
 Visit **[yggdrasil.logkat.dev](http://yggdrasil.logkat.dev/)** for full documentation, or install directly from:
