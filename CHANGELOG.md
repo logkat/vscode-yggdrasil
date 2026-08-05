@@ -2,6 +2,13 @@
 
 All notable changes to the "yggdrasil" extension will be documented in this file.
 
+## [0.2.2](https://github.com/logkat/vscode-yggdrasil/compare/v0.2.1...v0.2.2) (2026-08-05)
+
+
+### Features
+
+* polish the worktree sidebar, empty states and welcome page ([#44](https://github.com/logkat/vscode-yggdrasil/issues/44)) ([913dad9](https://github.com/logkat/vscode-yggdrasil/commit/913dad9493e1edebb6003e1060b5a57abb88b645))
+
 ## [0.2.1](https://github.com/logkat/vscode-yggdrasil/compare/v0.2.0...v0.2.1) (2026-08-05)
 
 
