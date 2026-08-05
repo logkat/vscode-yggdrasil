@@ -1,23 +1,49 @@
+# Only `out/` (minus tests), images/, and the marketplace-facing docs ship.
+# Anything not matched here is included, so there is deliberately no `!out/**`
+# negation: a broad re-include would override the test and source-map rules
+# below and pull the whole compiled test suite back into the package.
+
+# Editor / tooling state
 .vscode/**
 .vscode-test/**
+.idea/**
+.husky/**
+.github/**
+.rtk/**
+
+# Agent / assistant scratch
 .agent/**
 .claude/**
 .claude-flow/**
-.idea/**
 .remember/**
+claude-flow.config.json
+agentdb.rvf
+agentdb.rvf.lock
+ruvector.db
+
+# Sources and build inputs
 src/**
-docs/**
 test/**
 temp_repo/**
-CLAUDE.md
-.gitignore
-tsconfig.json
-**/*.map
-**/*.ts
-!out/**
+docs/**
+scripts/**
 node_modules/**
-ruvector.db
-claude-flow.config.json
-.DS_Store
-**/.DS_Store
+tsconfig.json
+eslint.config.js
+.prettierrc.json
+.prettierignore
+.versionrc.json
+.vscodeignore
+.gitignore
 .env
+.env.example
+
+# Contributor docs (the marketplace shows README + CHANGELOG only)
+CLAUDE.md
+CONTRIBUTING.md
+
+# Build output that must not ship
+out/test/**
+**/*.map
+**/*.vsix
+**/.DS_Store
