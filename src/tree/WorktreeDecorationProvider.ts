@@ -99,10 +99,19 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
       } else if (owner && owner.path === basePath) {
         colorId = BASE_COLOR;
       } else {
-        colorId = this.getRandomColorForWorktree(owner?.path ?? itemPath);
+        colorId = this.getRandomColorForWorktree(toComparablePath(owner?.path ?? itemPath));
       }
     } else {
-      colorId = this.getRandomColorForWorktree(itemPath || branch);
+      // No worktree list is available at all here (e.g. during startup, before
+      // GitService.getCachedWorktrees() has resolved), so there's no way to map
+      // itemPath back to an owning worktree root. itemPath itself is unusable as
+      // a shared key: it varies per row (worktree root vs. a nested file/folder
+      // path) and may be forward- or back-slashed depending on how the caller
+      // built it — keying on it would put a worktree's own row and its files in
+      // different `assignments` entries. `branch` is the one value guaranteed
+      // identical for every row under the same worktree (it's already validated
+      // non-empty above), so use it directly.
+      colorId = this.getRandomColorForWorktree(branch);
     }
 
     return {

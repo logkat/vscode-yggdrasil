@@ -60,13 +60,8 @@
         },
         "ygg.agentProviders": {
           "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "claude-code",
-            "claude-desktop"
-          ],
+          "items": { "type": "string" },
+          "default": ["claude-code", "claude-desktop"],
           "description": "Which agent providers are active. Built-in values: \"claude-code\", \"claude-desktop\". Remove an entry to disable that provider."
         },
         "ygg.showAgentNodeWhenEmpty": {
@@ -304,14 +299,8 @@
           "command": "ygg.openDiff",
           "when": "false"
         },
-        {
-          "command": "ygg.copyAgentResumeCommand",
-          "when": "false"
-        },
-        {
-          "command": "ygg.copyAgentSessionId",
-          "when": "false"
-        }
+        { "command": "ygg.copyAgentResumeCommand", "when": "false" },
+        { "command": "ygg.copyAgentSessionId", "when": "false" }
       ],
       "view/item/context": [
         {

@@ -157,6 +157,25 @@ suite('WorktreeDecorationProvider', () => {
     assert.strictEqual(decoration.color.id, 'ygg.worktreeColor.current');
   });
 
+  test('startup window: worktree row and file row share color despite mixed separators when worktrees are not yet cached', () => {
+    // During startup, git.getCachedWorktrees() returns undefined, so the owner
+    // lookup is skipped entirely and provideFileDecoration falls back to keying
+    // the assignment map on the raw item path. A worktree row (forward slashes,
+    // matching git's porcelain output) and a file row underneath it (backslashes,
+    // from path.join on win32) must still land on the same color.
+    const git = { getCachedWorktrees: () => undefined } as any;
+    const provider = new WorktreeDecorationProvider(git, () => true);
+
+    const wtUri = vscode.Uri.parse(`ygg-worktree://wt?path=${encodeURIComponent('C:/repo/wt')}`);
+    const fileUri = vscode.Uri.parse(
+      `ygg-worktree://wt?path=${encodeURIComponent('C:\\repo\\wt\\src\\file.ts')}`
+    );
+
+    const wtColor = (provider.provideFileDecoration(wtUri, {} as any) as any).color.id;
+    const fileColor = (provider.provideFileDecoration(fileUri, {} as any) as any).color.id;
+    assert.strictEqual(wtColor, fileColor);
+  });
+
   test('the cached flag is not re-read per call', () => {
     const wt = mockWorktree({ path: '/repo/wt', branch: 'wt' });
     const git = { getCachedWorktrees: () => [wt] } as any;
