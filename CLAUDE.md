@@ -10,6 +10,8 @@ npm run compile          # TypeScript → out/
 npm run watch            # compile in watch mode
 npm test                 # run extension tests (node ./out/test/runTests.js)
 npm run package          # build .vsix for distribution (vsce package)
+npm run release          # bump version, generate changelog, and tag (used by CI or manual override)
+npm run release:dry-run  # dry run release (does not write files or tag)
 ```
 
 ## Architecture

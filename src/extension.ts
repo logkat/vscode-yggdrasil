@@ -69,6 +69,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     context.subscriptions.push(
       vscode.window.registerFileDecorationProvider(decorationProvider),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('ygg.worktreeColors')) {
+          decorationProvider.refresh();
+        }
+      }),
       treeView,
       explorerView,
       welcomeCommand,

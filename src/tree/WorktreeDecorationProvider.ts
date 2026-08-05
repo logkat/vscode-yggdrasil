@@ -15,7 +15,20 @@ const POOL = [
   'ygg.worktreeColor.9',
 ];
 const CURRENT_COLOR = 'ygg.worktreeColor.current';
-const BASE_COLOR = 'list.foreground';
+// `list.foreground` is not a registered VS Code color id; `foreground` is.
+const BASE_COLOR = 'foreground';
+
+// Worktree.path comes verbatim from `git worktree list --porcelain`, which always
+// emits forward slashes (even on win32), while item paths are built with
+// `path.join` in WorktreeProvider and therefore use platform separators. Normalize
+// both sides to forward slashes before comparing so ownership matches on Windows.
+function toComparablePath(p: string): string {
+  return p.replace(/\\/g, '/');
+}
+
+export function readWorktreeColorsSetting(): boolean {
+  return vscode.workspace.getConfiguration('ygg').get<boolean>('worktreeColors', false);
+}
 
 export class WorktreeDecorationProvider implements vscode.FileDecorationProvider {
   private readonly _onDidChangeFileDecorations = new vscode.EventEmitter<
@@ -28,8 +41,12 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
 
   private basePath?: string;
   private currentPath?: string;
+  private colorsEnabled?: boolean;
 
-  constructor(private readonly git: GitService) {}
+  constructor(
+    private readonly git: GitService,
+    private readonly readColorsEnabled: () => boolean = readWorktreeColorsSetting
+  ) {}
 
   provideFileDecoration(
     uri: vscode.Uri,
@@ -54,14 +71,25 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
       return undefined;
     }
 
+    if (!this.colorsOn()) {
+      return undefined;
+    }
+
     const worktrees = this.git.getCachedWorktrees();
     const itemPath = decodeURIComponent(new URLSearchParams(uri.query).get('path') ?? '');
 
     let colorId: string;
     if (worktrees && itemPath) {
       // Find the owning worktree by longest prefix match
+      const comparableItemPath = toComparablePath(itemPath);
       const owner = worktrees
-        .filter((w) => itemPath === w.path || itemPath.startsWith(w.path + '/'))
+        .filter((w) => {
+          const comparableWorktreePath = toComparablePath(w.path);
+          return (
+            comparableItemPath === comparableWorktreePath ||
+            comparableItemPath.startsWith(comparableWorktreePath + '/')
+          );
+        })
         .sort((a, b) => b.path.length - a.path.length)[0];
 
       const { basePath, currentPath } = this.resolveBaseAndCurrent(worktrees);
@@ -71,10 +99,19 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
       } else if (owner && owner.path === basePath) {
         colorId = BASE_COLOR;
       } else {
-        colorId = this.getRandomColorForWorktree(owner?.path ?? itemPath);
+        colorId = this.getRandomColorForWorktree(toComparablePath(owner?.path ?? itemPath));
       }
     } else {
-      colorId = this.getRandomColorForWorktree(itemPath || branch);
+      // No worktree list is available at all here (e.g. during startup, before
+      // GitService.getCachedWorktrees() has resolved), so there's no way to map
+      // itemPath back to an owning worktree root. itemPath itself is unusable as
+      // a shared key: it varies per row (worktree root vs. a nested file/folder
+      // path) and may be forward- or back-slashed depending on how the caller
+      // built it — keying on it would put a worktree's own row and its files in
+      // different `assignments` entries. `branch` is the one value guaranteed
+      // identical for every row under the same worktree (it's already validated
+      // non-empty above), so use it directly.
+      colorId = this.getRandomColorForWorktree(branch);
     }
 
     return {
@@ -90,6 +127,13 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
       this.basePath = sorted[0]?.path || '';
     }
     return { basePath: this.basePath, currentPath: this.currentPath };
+  }
+
+  private colorsOn(): boolean {
+    if (this.colorsEnabled === undefined) {
+      this.colorsEnabled = this.readColorsEnabled();
+    }
+    return this.colorsEnabled;
   }
 
   private getRandomColorForWorktree(wtPath: string): string {
@@ -118,6 +162,7 @@ export class WorktreeDecorationProvider implements vscode.FileDecorationProvider
   public refresh(uri?: vscode.Uri | vscode.Uri[]): void {
     this.basePath = undefined;
     this.currentPath = undefined;
+    this.colorsEnabled = undefined;
     this._onDidChangeFileDecorations.fire(uri);
   }
 }

@@ -60,3 +60,41 @@ Keep PRs focused. Avoid bundling unrelated refactoring with a feature or fix.
 | `src/commands/CommandRegistry.ts` | Registers all `ygg.*` VS Code commands |
 | `src/commands/StatusBarManager.ts` | Status-bar items |
 | `src/content/YggContentProvider.ts` | Virtual `ygg-git:` scheme for diff views |
+
+## Commit Messages & Releases
+
+This project uses **Conventional Commits** to automate semantic versioning and changelog generation.
+
+### Commit Guidelines
+
+Commit messages must follow the conventional commits specification:
+- `feat: <description>` - A new feature (bumps minor version)
+- `fix: <description>` - A bug fix (bumps patch version)
+- `docs: <description>` - Documentation changes (no version bump)
+- `chore: <description>` - Miscellaneous chores and maintenance (no version bump)
+- `refactor: <description>` - Code refactoring (no version bump)
+- `perf: <description>` - Performance improvements (bumps patch version)
+
+Breaking changes should contain a `!` after the type (e.g., `feat!: rewrite parser`) or `BREAKING CHANGE:` in the footer, which bumps the major version.
+
+### Release Process
+
+Releases are fully automated via the **Auto Release** GitHub Actions workflow:
+
+1. **Automatic Bumping & Changelog**: When changes are merged or pushed to the `main` branch, the workflow:
+   - Parses the commit history since the last tag using `commit-and-tag-version`.
+   - Determines the next semantic version bump.
+   - Updates `package.json` and `package-lock.json` with the new version.
+   - Appends the release notes to `CHANGELOG.md`.
+   - Creates a commit in the format `chore(release): vX.Y.Z [skip ci]` and a matching git tag.
+   - Pushes the release commit and tag back to the `main` branch.
+   - Triggers the extension publishing workflow.
+
+> [!NOTE]
+> While the project is in initial development (version `< 1.0.0`), `commit-and-tag-version` defaults to a patch bump for features.
+> If you need to force a minor release or bypass the automated calculation, you can run the command locally before pushing:
+> ```bash
+> npm run release -- --release-as minor
+> git push --follow-tags
+> ```
+> Pushing a commit with `[skip ci]` or manual tags will safely bypass the automated pipeline step, and trigger publishing directly.

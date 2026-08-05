@@ -68,6 +68,11 @@
           "type": "boolean",
           "default": false,
           "description": "Show the Agent Sessions child node even when no sessions are detected for a worktree."
+        },
+        "ygg.worktreeColors": {
+          "type": "boolean",
+          "default": false,
+          "description": "Colour each worktree's rows, and the files and folders inside it, with a distinct colour."
         }
       }
     },
@@ -76,100 +81,100 @@
         "id": "ygg.worktreeColor.current",
         "description": "Yggdrasil current worktree color",
         "defaults": {
-          "dark": "#2f6f37",
-          "light": "#30a147",
+          "dark": "#60bc6b",
+          "light": "#216e31",
           "highContrast": "#30a147",
-          "highContrastLight": "#30a147"
+          "highContrastLight": "#227232"
         }
       },
       {
         "id": "ygg.worktreeColor.1",
         "description": "Yggdrasil worktree color 1",
         "defaults": {
-          "dark": "#9d615c",
-          "light": "#9d615c",
-          "highContrast": "#9d615c",
-          "highContrastLight": "#9d615c"
+          "dark": "#c5a09d",
+          "light": "#86534f",
+          "highContrast": "#b07d78",
+          "highContrastLight": "#8b5652"
         }
       },
       {
         "id": "ygg.worktreeColor.2",
         "description": "Yggdrasil worktree color 2",
         "defaults": {
-          "dark": "#006edb",
+          "dark": "#5caeff",
           "light": "#001a47",
-          "highContrast": "#006edb",
-          "highContrastLight": "#006edb"
+          "highContrast": "#1189ff",
+          "highContrastLight": "#0062c4"
         }
       },
       {
         "id": "ygg.worktreeColor.3",
         "description": "Yggdrasil worktree color 3",
         "defaults": {
-          "dark": "#866e04",
-          "light": "#866e04",
-          "highContrast": "#866e04",
-          "highContrastLight": "#866e04"
+          "dark": "#caa606",
+          "light": "#735f03",
+          "highContrast": "#a48705",
+          "highContrastLight": "#786204"
         }
       },
       {
         "id": "ygg.worktreeColor.4",
         "description": "Yggdrasil worktree color 4",
         "defaults": {
-          "dark": "#527a29",
-          "light": "#527a29",
-          "highContrast": "#527a29",
-          "highContrastLight": "#527a29"
+          "dark": "#7dba3e",
+          "light": "#476a24",
+          "highContrast": "#669733",
+          "highContrastLight": "#4a6e25"
         }
       },
       {
         "id": "ygg.worktreeColor.5",
         "description": "Yggdrasil worktree color 5",
         "defaults": {
-          "dark": "#eb670f",
+          "dark": "#f4904d",
           "light": "#984b10",
           "highContrast": "#eb670f",
-          "highContrastLight": "#eb670f"
+          "highContrastLight": "#a5490b"
         }
       },
       {
         "id": "ygg.worktreeColor.6",
         "description": "Yggdrasil worktree color 6",
         "defaults": {
-          "dark": "#a830e8",
-          "light": "#ce2c85",
-          "highContrast": "#ce2c85",
-          "highContrastLight": "#ce2c85"
+          "dark": "#d08ff3",
+          "light": "#b02672",
+          "highContrast": "#dc5ba2",
+          "highContrastLight": "#b62776"
         }
       },
       {
         "id": "ygg.worktreeColor.7",
         "description": "Yggdrasil worktree color 7",
         "defaults": {
-          "dark": "#106c70",
-          "light": "#179b9b",
+          "dark": "#1cbbc2",
+          "light": "#106b6b",
           "highContrast": "#179b9b",
-          "highContrastLight": "#179b9b"
+          "highContrastLight": "#116f6f"
         }
       },
       {
         "id": "ygg.worktreeColor.8",
         "description": "Yggdrasil worktree color 8",
         "defaults": {
-          "dark": "#895906",
-          "light": "#b88700",
+          "dark": "#e9970a",
+          "light": "#7c5b00",
           "highContrast": "#b88700",
-          "highContrastLight": "#b88700"
+          "highContrastLight": "#805e00"
         }
       },
       {
         "id": "ygg.worktreeColor.9",
         "description": "Yggdrasil worktree color 9",
         "defaults": {
-          "dark": "#894ceb",
-          "light": "#894ceb",
-          "highContrast": "#894ceb",
-          "highContrastLight": "#894ceb"
+          "dark": "#bb98f3",
+          "light": "#7730e8",
+          "highContrast": "#a170ef",
+          "highContrastLight": "#7b36e9"
         }
       }
     ],
@@ -357,7 +362,9 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "prepare": "husky"
+    "prepare": "husky",
+    "release": "commit-and-tag-version",
+    "release:dry-run": "commit-and-tag-version --dry-run"
   },
   "lint-staged": {
     "src/**/*.ts": [
@@ -372,8 +379,9 @@
     "@types/vscode": "^1.74.0",
     "@typescript-eslint/eslint-plugin": "^8.61.0",
     "@typescript-eslint/parser": "^8.61.0",
-    "@vscode/test-electron": "^3.0.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^3.9.2",
+    "commit-and-tag-version": "^12.7.3",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
