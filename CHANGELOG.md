@@ -2,6 +2,13 @@
 
 All notable changes to the "yggdrasil" extension will be documented in this file.
 
+## [0.2.1](https://github.com/logkat/vscode-yggdrasil/compare/v0.2.0...v0.2.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* support bare repositories with linked worktrees ([#42](https://github.com/logkat/vscode-yggdrasil/issues/42)) ([f594a1c](https://github.com/logkat/vscode-yggdrasil/commit/f594a1c0918b07dd3672798ef6cea20f1fefb106))
+
 ## [0.2.0](https://github.com/logkat/vscode-yggdrasil/compare/v0.1.5...v0.2.0) (2026-08-05)
 
 ### ⚠ BREAKING CHANGES
