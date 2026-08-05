@@ -26,15 +26,27 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-latest
     steps:
+      # A ruleset on `main` requires changes to go through a pull request, so the
+      # default GITHUB_TOKEN cannot push here. The org-owned `yggdrasil-release`
+      # GitHub App is on that ruleset's bypass list; mint a short-lived
+      # installation token for it. The app is preferred over a PAT because it is
+      # not tied to a person's account, so releases survive someone leaving.
+      #
+      # If this step fails: check the APP_ID variable and APP_PRIVATE_KEY secret.
+      # If it succeeds and the *push* still fails, the app is missing from the
+      # ruleset's bypass list (Settings → Rules → main protection → Bypass list →
+      # Integrations).
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - uses: actions/checkout@v7
         with:
           # Fetch full history to determine version bump and generate changelogs accurately
           fetch-depth: 0
-          # A ruleset on `main` requires changes to go through a pull request, so the
-          # default GITHUB_TOKEN is rejected with GH013. Set a RELEASE_TOKEN secret
-          # (fine-grained PAT or GitHub App token) whose actor is on the ruleset's
-          # bypass list. Without it this job cannot push and will fail at that step.
-          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - uses: actions/setup-node@v7
         with:
