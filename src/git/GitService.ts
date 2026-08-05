@@ -64,11 +64,22 @@ export class GitService {
     if (result.status === -1) {
       throw new Error('git not found on PATH');
     }
-    if (result.status !== 0) {
-      throw new Error(result.stderr.trim() || 'Not a git repository');
+    if (result.status === 0) {
+      this.repoRootCache = result.stdout.trim();
+      return this.repoRootCache;
     }
-    this.repoRootCache = result.stdout.trim();
-    return this.repoRootCache;
+
+    // `--show-toplevel` fails inside a bare repository ("fatal: this operation
+    // must be run in a work tree"), which is the common `bare .git + .worktrees/`
+    // layout this extension exists to serve. There is no work tree to report, but
+    // `git worktree list` and ref lookups work fine with cwd here, so use it.
+    const isBare = await this.run('git', ['rev-parse', '--is-bare-repository'], { cwd });
+    if (isBare.status === 0 && isBare.stdout.trim() === 'true') {
+      this.repoRootCache = cwd;
+      return this.repoRootCache;
+    }
+
+    throw new Error(result.stderr.trim() || 'Not a git repository');
   }
 
   private resolveWorkspaceRealPath(): string {
