@@ -59,6 +59,7 @@ When switching, you can choose to "Remember my choice". This preference is store
 ## Extension Settings
 - `ygg.baseBranch`: Default branch to compare all worktrees against (e.g., `main`).
 - `ygg.showInExplorer`: Mirror the Yggdrasil panel at the bottom of the standard File Explorer (default: `true`).
+- `ygg.worktreeColors`: Colour each worktree's rows, and the files and folders inside it, with a distinct colour (default: `false`). Requires VS Code's built-in `explorer.decorations.colors` setting to also be enabled, or no colours will appear.
 
 ## Requirements
 - **VS Code**: `^1.74.0`
