@@ -8,6 +8,12 @@ on:
     branches:
       - main
 
+# Least privilege: this workflow only reads the repo to lint, build and test.
+# Without an explicit block the job would inherit the repository default, which
+# can be read/write for all scopes.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest

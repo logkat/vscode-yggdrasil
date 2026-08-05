@@ -6,6 +6,11 @@ on:
     tags:
       - "v*"
 
+# Least privilege: publishing authenticates to the Marketplace and Open VSX with
+# their own PATs, so GITHUB_TOKEN only ever needs to read the repo.
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
