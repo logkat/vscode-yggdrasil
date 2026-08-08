@@ -36,7 +36,7 @@ jobs:
       # If it succeeds and the *push* still fails, the app is missing from the
       # ruleset's bypass list (Settings → Rules → main protection → Bypass list →
       # Integrations).
-      - uses: actions/create-github-app-token@v1
+      - uses: actions/create-github-app-token@v3
         id: app-token
         with:
           app-id: ${{ vars.APP_ID }}
